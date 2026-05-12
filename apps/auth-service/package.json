@@ -1,0 +1,19 @@
+{
+  "name": "@repo/auth-service",
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "build": "tsc",
+    "start": "bun run dist/server.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@repo/database": "*",
+    "@types/express": "^5.0.6",
+    "express": "^5.2.1"
+  }
+}

@@ -6,6 +6,7 @@ export async function connectMongoDb(): Promise<Connection> {
   if (connection) {
     return connection;
   }
+  console.log("Connecting to MongoDB...");
 
   if (!process.env.DATABASE_URL) {
     throw new Error("No database connection string provided");
