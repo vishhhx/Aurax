@@ -1,1 +1,1 @@
-export { AuthModel, IAuth } from "./user";
+export { AuthModel, type IAuth } from "./user";

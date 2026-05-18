@@ -1,15 +1,18 @@
-import {asyncHandler,ApiReponse,ApiError} from "@repo/core/rest";
-import {Request,Response} from "express"
+import { asyncHandler, ApiReponse } from "@repo/core/rest";
+import { Request, Response } from "express";
 import logger from "../config/logger";
+import { AuthService } from "../services/auth";
 
-export const register=asyncHandler(async(req:Request,res:Response)=>{
+export const register = asyncHandler(async (req: Request, res: Response) => {
+  const { email, password } = req.body;
 
+  const authService = new AuthService();
 
-    const {email,password}=req.body
+  const user = await authService.register(email, password);
 
-    
-    
+  logger.info(`User registered with email: ${email}`);
 
-
-
-})
+  res
+    .status(201)
+    .json(new ApiReponse(true, user, "User registered successfully", 201));
+});

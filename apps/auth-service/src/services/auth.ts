@@ -1,5 +1,3 @@
-// services/auth.service.ts
-
 import { AuthRepository } from "../repositories/auth.repositories";
 import { comparePassword, hashPassword } from "../utils/password";
 import { ApiError } from "@repo/core/rest";
