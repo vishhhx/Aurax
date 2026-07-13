@@ -6,6 +6,15 @@ services:
       - "8001:8001"
     volumes:
       - redis-data:/data
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_NAME: aurax
 
 volumes:
   redis-data:
+  mongo-data:

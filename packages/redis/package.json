@@ -1,5 +1,5 @@
 {
-  "name": "redis",
+  "name": "@repo/redis",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -11,5 +11,10 @@
   },
   "dependencies": {
     "redis": "^5.12.1"
+  },    
+  "exports": {
+    ".": {
+      "import": "./index.ts"
+    }
   }
 }

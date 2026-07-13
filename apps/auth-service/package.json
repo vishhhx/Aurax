@@ -15,10 +15,12 @@
     "@repo/core": "*",
     "@repo/database": "*",
     "@repo/logger": "*",
+    "@repo/redis": "*",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
     "bcrypt": "^6.0.0",
     "express": "^5.2.1",
+    "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.3",
     "zod": "^4.4.3"
   }
