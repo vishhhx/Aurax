@@ -8,14 +8,32 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    terms: false,
+  })
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.password !== formData.confirmPassword) {
+      alert("Passwords do not match")
+      return
+    }
     setIsLoading(true)
     try {
       await new Promise(resolve => setTimeout(resolve, 1500))
@@ -29,51 +47,63 @@ export default function LoginPage() {
       <div className="space-y-8">
         {/* Header */}
         <div className="space-y-3 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Create account</h1>
           <p className="text-sm text-muted-foreground">
-            Sign in to your Aurax account to continue trading
+            Join Aurax to start trading securely
           </p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email Field */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Full Name */}
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium">
-              Email address
+            <Label htmlFor="fullName" className="text-sm font-medium">
+              Full name
             </Label>
             <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="fullName"
+              name="fullName"
+              type="text"
+              placeholder="John Doe"
+              value={formData.fullName}
+              onChange={handleChange}
               required
               className="h-10"
               disabled={isLoading}
             />
           </div>
 
-          {/* Password Field */}
+          {/* Email */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-sm font-medium">
-                Password
-              </Label>
-              <Link
-                href="/forgot-password"
-                className="text-xs text-primary hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            <Label htmlFor="email" className="text-sm font-medium">
+              Email address
+            </Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="you@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              className="h-10"
+              disabled={isLoading}
+            />
+          </div>
+
+          {/* Password */}
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-medium">
+              Password
+            </Label>
             <div className="relative">
               <Input
                 id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create a strong password"
+                value={formData.password}
+                onChange={handleChange}
                 required
                 className="h-10 pr-10"
                 disabled={isLoading}
@@ -93,24 +123,72 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Remember Me */}
-          <div className="flex items-center gap-2">
-            <Checkbox id="remember" disabled={isLoading} />
+          {/* Confirm Password */}
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword" className="text-sm font-medium">
+              Confirm password
+            </Label>
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type={showConfirm ? "text" : "password"}
+                placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                className="h-10 pr-10"
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(!showConfirm)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                disabled={isLoading}
+              >
+                {showConfirm ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Terms */}
+          <div className="flex items-start gap-2">
+            <Checkbox 
+              id="terms" 
+              name="terms"
+              checked={formData.terms}
+              onCheckedChange={(checked) => 
+                setFormData(prev => ({ ...prev, terms: checked === true }))
+              }
+              disabled={isLoading}
+              className="mt-1"
+            />
             <Label
-              htmlFor="remember"
-              className="text-sm text-muted-foreground cursor-pointer font-normal"
+              htmlFor="terms"
+              className="text-xs text-muted-foreground cursor-pointer font-normal leading-relaxed"
             >
-              Keep me signed in
+              I agree to the{" "}
+              <Link href="/terms" className="text-primary hover:underline">
+                Terms of Service
+              </Link>
+              {" "}and{" "}
+              <Link href="/privacy" className="text-primary hover:underline">
+                Privacy Policy
+              </Link>
             </Label>
           </div>
 
-          {/* Submit Button */}
+          {/* Submit */}
           <Button
             type="submit"
-            className="w-full h-10"
-            disabled={isLoading}
+            className="w-full h-10 mt-2"
+            disabled={isLoading || !formData.terms}
           >
-            {isLoading ? "Signing in..." : "Sign in"}
+            {isLoading ? "Creating account..." : "Create account"}
           </Button>
         </form>
 
@@ -121,12 +199,12 @@ export default function LoginPage() {
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
-              Or continue with
+              Or sign up with
             </span>
           </div>
         </div>
 
-        {/* Social Login */}
+        {/* Social Signup */}
         <div className="grid grid-cols-2 gap-3">
           <Button
             type="button"
@@ -157,9 +235,9 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="text-center text-sm">
-          <span className="text-muted-foreground">Don't have an account? </span>
-          <Link href="/register" className="text-primary hover:underline font-medium">
-            Sign up
+          <span className="text-muted-foreground">Already have an account? </span>
+          <Link href="/login" className="text-primary hover:underline font-medium">
+            Sign in
           </Link>
         </div>
       </div>

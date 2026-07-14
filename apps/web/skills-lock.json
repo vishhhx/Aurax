@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "morphing-icons": {
+      "source": "raphaelsalaja/skill",
+      "sourceType": "github",
+      "skillPath": "skills/morphing-icons/SKILL.md",
+      "computedHash": "9a0d225abf57837c7d1b7c6ec4e607dbaf0584d316e8b127aa6176f537568d85"
+    },
+    "shadcn": {
+      "source": "shadcn-ui/ui",
+      "sourceType": "github",
+      "skillPath": "skills/shadcn/SKILL.md",
+      "computedHash": "d81caa0f86aabab65b25e302d454f23a3328760386ed9078345584c0d5c8058e"
+    }
+  }
+}
