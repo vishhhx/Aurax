@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { ENV } from "../config/env";
-import { GoogleOAuthResponse, GoogleUser } from "../types/auth";
+import { GithubEmail, GoogleOAuthResponse, oAuthUser } from "../types/auth";
+import { connectToredis, RedisString } from "@repo/redis";
 
 const SCOPES = ["openid", "email", "profile"];
 
@@ -58,7 +59,7 @@ export class googleOauthService {
     }
   }
 
-  private async getGoogleProfile(): Promise<GoogleUser> {
+  private async getGoogleProfile(): Promise<oAuthUser> {
     const oauth2 = google.oauth2({
       version: "v2",
       auth: this.oauth2Client,
@@ -75,7 +76,7 @@ export class googleOauthService {
     }
 
     return {
-      googleId: data.id,
+      id: data.id,
       email: data.email,
       verified: data.verified_email ?? false,
       name: data.name ?? "",
@@ -84,9 +85,129 @@ export class googleOauthService {
     };
   }
 }
+interface GithubAuthResponse {
+  url: string;
+  state: string;
+}
 
+interface GithubTokenResponse {
+  access_token?: string;
+  token_type: string;
+  scope: string;
+}
 
+export class GithubOauthService {
+  async generateGithubAuthUrl(): Promise<GithubAuthResponse> {
+    try {
+      const state = crypto.randomUUID();
+      const params = new URLSearchParams({
+        client_id: ENV.GITHUB_CLIENT_ID!,
+        redirect_uri: ENV.GITHUB_REDIRECT_URI!,
+        scope: "read:user user:email",
+        state,
+      });
+      const redis = await connectToredis();
+      const redisString = new RedisString(redis);
+      await redisString.set(`oauth:github:${state}`, state, { EX: 300 });
+      return {
+        url: `https://github.com/login/oauth/authorize?${params.toString()}`,
+        state,
+      };
+    } catch (error) {
+      console.error("Failed to generate GitHub OAuth URL:", error);
+      throw new Error("Unable to generate GitHub authorization URL.");
+    }
+  }
 
-export class githubOauthService{
-  
+  async githubCallback(code: string, state: string): Promise<oAuthUser> {
+    try {
+      const redis = await connectToredis();
+      const redisString = new RedisString(redis);
+
+      const storedState = await redisString.get(`oauth:github:${state}`);
+
+      if (!storedState) {
+        throw new Error("Invalid or expired OAuth state.");
+      }
+
+      await redisString.delete(`oauth:github:${state}`);
+
+      const params = new URLSearchParams({
+        client_id: ENV.GITHUB_CLIENT_ID!,
+        client_secret: ENV.GITHUB_CLIENT_SECRET!,
+        code,
+      });
+
+      const response = await fetch(
+        "https://github.com/login/oauth/access_token",
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: params.toString(),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`GitHub returned ${response.status}`);
+      }
+
+      const data = (await response.json()) as GithubTokenResponse;
+
+      if (!data.access_token) {
+        throw new Error("GitHub did not return an access token.");
+      }
+
+      return await this.getGithubProfile(data.access_token);
+    } catch (error) {
+      console.error("GitHub OAuth callback failed:", error);
+      throw new Error("GitHub authentication failed.");
+    }
+  }
+  private async getGithubProfile(token: string): Promise<oAuthUser> {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    };
+
+    const [userResponse, emailResponse] = await Promise.all([
+      fetch("https://api.github.com/user", {
+        method: "GET",
+        headers,
+      }),
+      fetch("https://api.github.com/user/emails", {
+        method: "GET",
+        headers,
+      }),
+    ]);
+
+    if (!userResponse.ok) {
+      throw new Error(`Failed to fetch GitHub user: ${userResponse.status}`);
+    }
+
+    if (!emailResponse.ok) {
+      throw new Error(`Failed to fetch GitHub emails: ${emailResponse.status}`);
+    }
+
+    const user = (await userResponse.json()) as oAuthUser;
+    const emails = (await emailResponse.json()) as GithubEmail[];
+
+    const primaryEmail = emails.find((email) => email.primary);
+
+    if (!primaryEmail) {
+      throw new Error("No primary email found for GitHub account.");
+    }
+
+    return {
+      id: String(user.id),
+      email: primaryEmail.email,
+      name: user.name,
+      verified: primaryEmail.verified,
+      avatar: user.avatar,
+      locale: undefined,
+    };
+  }
 }

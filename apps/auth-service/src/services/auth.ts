@@ -11,7 +11,7 @@ export class AuthService {
   }
 
   async register(email: string, password: string) {
-    const existingUser = await this.authRepository.findUserByEmail(email);
+    const existingUser = await this.checkUserExist(email);
 
     if (existingUser) {
       throw new ApiError(409, "User already exists");
@@ -42,5 +42,9 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async checkUserExist(email: string) {
+    return await this.authRepository.findUserByEmail(email);
   }
 }

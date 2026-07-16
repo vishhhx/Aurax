@@ -4,8 +4,8 @@ export interface UserDetails {
   email: string;
 }
 
-export interface GoogleUser {
-  googleId: string;
+export interface oAuthUser {
+  id: string;
   email: string;
   verified: boolean;
   name: string;
@@ -14,7 +14,7 @@ export interface GoogleUser {
 }
 
 export interface GoogleOAuthResponse {
-  user: GoogleUser;
+  user: oAuthUser;
   tokens: {
     accessToken?: string;
     refreshToken?: string;
@@ -23,4 +23,10 @@ export interface GoogleOAuthResponse {
     scope?: string;
     tokenType?: string;
   };
+}
+export interface GithubEmail {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+  visibility: string | null;
 }
