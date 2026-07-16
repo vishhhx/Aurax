@@ -2,6 +2,7 @@ import { AuthRepository } from "../repositories/auth.repositories";
 import { comparePassword, hashPassword } from "../utils/password";
 import { ApiError } from "@repo/core/rest";
 import { type IAuth } from "@repo/database";
+import { AuthPayload } from "../types/auth";
 
 export class AuthService {
   private authRepository: AuthRepository;
@@ -10,16 +11,20 @@ export class AuthService {
     this.authRepository = new AuthRepository();
   }
 
-  async register(email: string, password: string) {
-    const existingUser = await this.checkUserExist(email);
+  async register(data: AuthPayload): Promise<IAuth> {
+    let user;
+    if (data.provider === "local" && data.password) {
+      const passwordHash = await hashPassword(data.password);
 
-    if (existingUser) {
-      throw new ApiError(409, "User already exists");
+      await this.authRepository.createUser({
+        ...data,
+        password: passwordHash,
+      });
     }
 
-    const passwordHash = await hashPassword(password);
-
-    const user = await this.authRepository.createUser(email, passwordHash);
+    user = await this.authRepository.createUser({
+      ...data,
+    });
 
     return user;
   }

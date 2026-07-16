@@ -15,7 +15,7 @@ export interface IAuth extends Document {
   failedLoginAttempts: number;
 
   lastLogin?: Date;
-
+  name: string;
   provider: "local" | "google";
 }
 
@@ -33,6 +33,10 @@ const authSchema = new Schema<IAuth>(
       ],
     },
 
+    name: {
+      type: String,
+      required: true,
+    },
     passwordHash: {
       type: String,
       required: function (this: IAuth) {
@@ -74,7 +78,7 @@ const authSchema = new Schema<IAuth>(
 
     provider: {
       type: String,
-      enum: ["local", "google"],
+      enum: ["local", "google","github"],
       default: "local",
     },
   },

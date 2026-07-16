@@ -1,6 +1,12 @@
 import { google } from "googleapis";
 import { ENV } from "../config/env";
-import { GithubEmail, GoogleOAuthResponse, oAuthUser } from "../types/auth";
+import {
+  GithubAuthResponse,
+  GithubEmail,
+  GithubTokenResponse,
+  GoogleOAuthResponse,
+  oAuthUser,
+} from "../types/auth";
 import { connectToredis, RedisString } from "@repo/redis";
 
 const SCOPES = ["openid", "email", "profile"];
@@ -85,17 +91,6 @@ export class googleOauthService {
     };
   }
 }
-interface GithubAuthResponse {
-  url: string;
-  state: string;
-}
-
-interface GithubTokenResponse {
-  access_token?: string;
-  token_type: string;
-  scope: string;
-}
-
 export class GithubOauthService {
   async generateGithubAuthUrl(): Promise<GithubAuthResponse> {
     try {

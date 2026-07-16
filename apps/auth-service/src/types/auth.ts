@@ -24,6 +24,27 @@ export interface GoogleOAuthResponse {
     tokenType?: string;
   };
 }
+
+export type Provider = "local" | "google" | "github";
+
+export interface AuthPayload {
+  name: string;
+  email: string;
+  provider: Provider;
+  password?: string;
+}
+
+export interface GithubAuthResponse {
+  url: string;
+  state: string;
+}
+
+export interface GithubTokenResponse {
+  access_token?: string;
+  token_type: string;
+  scope: string;
+}
+
 export interface GithubEmail {
   email: string;
   primary: boolean;
