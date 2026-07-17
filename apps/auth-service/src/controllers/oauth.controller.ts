@@ -28,6 +28,7 @@ export const initGoogleOauth2 = asyncHandler(
     const url: string = oauthService.generateGoogleAuthUrl();
 
     return res
+
       .status(HttpStatus.MOVED_PERMANENTLY)
       .json(
         new ApiReponse(
@@ -36,8 +37,7 @@ export const initGoogleOauth2 = asyncHandler(
           "Successfully initialized Google OAuth2",
           HttpStatus.MOVED_PERMANENTLY,
         ),
-      )
-      .redirect(url);
+      );
   },
 );
 
@@ -117,8 +117,7 @@ export const initGithubOauth2 = asyncHandler(
           "Successfully initialized GitHub OAuth2",
           HttpStatus.MOVED_PERMANENTLY,
         ),
-      )
-      .redirect(url);
+      );
   },
 );
 

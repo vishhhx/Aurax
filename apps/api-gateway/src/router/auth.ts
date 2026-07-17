@@ -1,9 +1,8 @@
-import { Router } from "express";
-import { authProxy } from "../proxy/proxy";
-import logger from "../config/logger";
-import { ENV } from "../config/env";
+// import { Router } from "express";
+// import { authProxy } from "../proxy/proxy";
+// import logger from "../config/logger";
+// import { ENV } from "../config/env";
 
-export const authRouter = Router();
+// export const authRouter = Router();
 
-
-authRouter.get("/oauth2/google", authProxy);
+// authRouter.get("/oauth2", authProxy);
