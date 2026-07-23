@@ -16,6 +16,7 @@
     "@repo/database": "*",
     "@repo/logger": "*",
     "@repo/redis": "*",
+    "@repo/pg": "*",
     "@types/express": "^5.0.6",
     "express": "^5.2.1",
     "razorpay": "^2.9.8",

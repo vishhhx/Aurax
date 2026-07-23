@@ -13,4 +13,14 @@ export const prisma =
     adapter,
   });
 
+export const connectToPostgres = async () => {
+  try {
+    prisma.$connect();
+  } catch (error) {
+    throw new Error(
+      `Failed to connect to Postgress: ${error instanceof Error ? error.message : error}`,
+    );
+  }
+};
+
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
