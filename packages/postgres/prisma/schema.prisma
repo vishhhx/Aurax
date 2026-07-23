@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Asset {
+  assetId String @id @default(cuid())
+
+  symbol   String @unique
+  name     String
+  decimals Int
+
+  depositEnabled    Boolean @default(true)
+  withdrawalEnabled Boolean @default(true)
+
+  minDeposit    Decimal @db.Decimal(30, 8)
+  minWithdrawal Decimal @db.Decimal(30, 8)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deposits Deposit[]
+}
+
+model Deposit {
+  depositId String @id @default(cuid())
+
+  userId String
+
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [assetId])
+
+  amount Decimal @db.Decimal(30, 8)
+
+  txHash  String? @unique
+  network String
+
+  confirmations Int @default(0)
+
+  status DepositStatus @default(PENDING)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+enum DepositStatus {
+  PENDING
+  CONFIRMING
+  COMPLETED
+  FAILED
+}

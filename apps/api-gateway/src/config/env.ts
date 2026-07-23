@@ -1,5 +1,3 @@
-// src/config/env.ts
-
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -10,4 +8,5 @@ export const ENV = {
   JWT_SECRET: process.env.JWT_SECRET!,
   AUTH_SERVICE_URL: process.env.AUTH_SERVICE_URL!,
   REDIS_URL: process.env.REDIS_URL!,
+  WALLET_SERVICE_URL: process.env.WALLET_SERVICE_URL!,
 };

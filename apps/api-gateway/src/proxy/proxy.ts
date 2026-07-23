@@ -28,3 +28,32 @@ export const authProxy = createProxyMiddleware({
     },
   },
 });
+
+
+
+export const walletProxy = createProxyMiddleware({
+  target: ENV.WALLET_SERVICE_URL,
+  changeOrigin: true,
+
+  pathRewrite: {
+    "^/api/v1/wallet": "/wallet",
+  },
+
+  on: {
+    proxyReq(proxyReq, req) {
+      logger.info(
+        `Forwarding ${req.method} ${req.url} -> ${ENV.WALLET_SERVICE_URL}${req.url}`,
+      );
+    },
+
+    proxyRes(proxyRes, req) {
+      logger.info(
+        `Response ${proxyRes.statusCode} <- ${req.method} ${req.url}`,
+      );
+    },
+
+    error(err, req) {
+      logger.error(`Proxy Error ${req.method} ${req.url}: ${err.message}`);
+    },
+  },
+});

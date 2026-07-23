@@ -6,5 +6,6 @@ import { authProxy } from "./proxy/proxy";
 const app = express();
 
 app.use("/api/v1/auth/", authProxy);
+app.use("/api/v1/wallet/")
 
 export default app;
