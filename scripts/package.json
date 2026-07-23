@@ -1,0 +1,13 @@
+{
+  "name": "@repo/scripts",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@repo/kafka": "*",
+    "@repo/logger": "*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}

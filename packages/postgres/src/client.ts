@@ -15,7 +15,7 @@ export const prisma =
 
 export const connectToPostgres = async () => {
   try {
-    prisma.$connect();
+    await prisma.$connect();
   } catch (error) {
     throw new Error(
       `Failed to connect to Postgress: ${error instanceof Error ? error.message : error}`,

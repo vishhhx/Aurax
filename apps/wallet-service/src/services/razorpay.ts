@@ -1,7 +1,8 @@
 import Razorpay from "razorpay";
 import { ENV } from "../config/env";
-class razorpayService {
-  private razorpay;
+
+export class RazorpayService {
+  private readonly razorpay: Razorpay;
 
   constructor() {
     this.razorpay = new Razorpay({
@@ -10,5 +11,11 @@ class razorpayService {
     });
   }
 
-  
+  async createOrder(amount: number, currency: string, receipt: string) {
+    return this.razorpay.orders.create({
+      amount,
+      currency,
+      receipt,
+    });
+  }
 }

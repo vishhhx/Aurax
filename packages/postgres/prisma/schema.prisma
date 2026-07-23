@@ -11,8 +11,11 @@ model Asset {
   assetId String @id @default(cuid())
 
   symbol   String @unique
+  imageUrl String
   name     String
   decimals Int
+
+  network String? 
 
   depositEnabled    Boolean @default(true)
   withdrawalEnabled Boolean @default(true)
@@ -37,7 +40,7 @@ model Deposit {
   amount Decimal @db.Decimal(30, 8)
 
   txHash  String? @unique
-  network String
+  network String ?
 
   confirmations Int @default(0)
 
