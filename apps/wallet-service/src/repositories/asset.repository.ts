@@ -10,12 +10,4 @@ export class AssetRepository {
       },
     });
   }
-
-  async getBySymbol(symbol: string) {
-    // ...
-  }
-
-  async getAllAssets() {
-    // ...
-  }
 }

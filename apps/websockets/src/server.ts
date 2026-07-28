@@ -1,4 +1,7 @@
+import { connectToredis } from "@repo/redis";
+await connectToredis();
 import express from "express";
+
 import { createServer } from "http";
 
 import { Server } from "socket.io";
@@ -6,12 +9,14 @@ import { ENV } from "./config/env";
 const app = express();
 const httpServer = createServer(app);
 export const io = new Server(httpServer, {});
+
+logger.info("Connected to Redis successfully");
 import {
   extractSocketToken,
   type UserPayload,
   verifyToken,
 } from "@repo/core/jwt";
-import { connectToredis } from "@repo/redis";
+
 import logger from "./config/logger";
 import {
   handleSocketConnection,
@@ -21,8 +26,6 @@ import {
 import { setGlobalIO } from "./utils/socketManager";
 
 setGlobalIO(io);
-await connectToredis();
-logger.info("Connected to Redis successfully");
 
 io.use(async (socket, next) => {
   try {
@@ -41,8 +44,8 @@ io.use(async (socket, next) => {
     };
 
     return next();
-  } catch (error) {
-    console.error("Socket auth middleware error:", error);
+  } catch (error: any) {
+    logger.error("Socket auth middleware error:", error);
     return next(new Error("Socket authentication failed"));
   }
 });

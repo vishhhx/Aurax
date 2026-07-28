@@ -3,7 +3,6 @@ import type { Server, Socket } from "socket.io";
 import { RedisString } from "@repo/redis";
 import logger from "../config/logger";
 
-const redisClient = new RedisString();
 type SocketAuthUser = {
   userId: string;
 };
@@ -12,6 +11,7 @@ export const handleSocketConnection = async (
   io: Server,
   authUser: SocketAuthUser,
 ) => {
+  const redisClient = new RedisString();
   try {
     const { userId } = authUser;
     logger.info(`User ${userId} connected with socket: ${socket.id}`);
@@ -25,6 +25,7 @@ export const handleSocketDisconnect = async (
   socket: Socket,
   userId: string,
 ) => {
+  const redisClient = new RedisString();
   logger.info(` User disconnected: ${userId}) Socket ID: ${socket.id}`);
   try {
     const result = await redisClient.delete(`socket:${userId}`);

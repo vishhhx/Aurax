@@ -30,3 +30,88 @@ export const depositeinitialize = asyncHandler(
       );
   },
 );
+
+export const verifyPayments = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      req.body;
+    const razorpayService = new RazorpayService();
+
+    const depositeService = new DepositService();
+    const isValid = razorpayService.verifyPaymentSignature({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      signature: razorpay_signature,
+    });
+
+    if (!isValid) {
+      return res
+        .status(400)
+        .json(new ApiReponse(false, null, "Invalid payment signature", 400));
+    }
+
+    await depositeService.conformPayment({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+    });
+    return res.status(200).json(
+      new ApiReponse(
+        true,
+        {
+          orderId: razorpay_order_id,
+          paymentId: razorpay_payment_id,
+          verified: true,
+        },
+        "Payment verified successfully",
+        200,
+      ),
+    );
+  },
+);
+
+export const RazorpayWebhook = asyncHandler(
+  async (req: Request, res: Response) => {
+    const signature = req.headers["x-razorpay-signature"];
+    if (!signature) {
+      return res
+        .status(401)
+        .json(new ApiReponse(false, null, "Missing webhook signature", 401));
+    }
+
+    const razorpayService = new RazorpayService();
+    const rawBody = req.body.toString();
+    const isvaild = razorpayService.verifyWebhookSignature(
+      rawBody,
+      signature.toString(),
+    );
+    if (!isvaild) {
+      return res
+        .status(401)
+        .json(new ApiReponse(false, null, "Invalid webhook signature", 401));
+    }
+
+    const event = req.body.event;
+    switch (event) {
+      case "payment.captured": {
+        const payment = req.body.payload.payment.entity;
+
+        const depositService = new DepositService();
+
+        await depositService.completeDeposit({
+          orderId: payment.order_id,
+          paymentId: payment.id,
+        });
+        
+
+        break;
+      }
+      default:
+        break;
+    }
+
+
+    return res
+      .status(200)
+      .json(new ApiReponse(true, null, "Webhook processed successfully", 200));
+  },
+);

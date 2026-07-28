@@ -27,6 +27,10 @@ model Asset {
   updatedAt DateTime @updatedAt
 
   deposits Deposit[]
+
+  wallets            Wallet[]
+  walletTransactions WalletTransaction[]
+  Ledger Ledger[]
 }
 
 model Deposit {
@@ -35,24 +39,116 @@ model Deposit {
   userId String
 
   assetId String
-  asset   Asset  @relation(fields: [assetId], references: [assetId])
+  asset   Asset @relation(fields: [assetId], references: [assetId])
 
   amount Decimal @db.Decimal(30, 8)
-
-  txHash  String? @unique
-  network String ?
-
+  orderId   String? @unique
+  paymentId String? @unique
+  // Blockchain (Phase 2)
+  txHash        String? @unique
+  network       String?
   confirmations Int @default(0)
 
   status DepositStatus @default(PENDING)
 
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
   completedAt DateTime?
 }
+
+model Wallet {
+  walletId String @id @default(cuid())
+  userId String
+  assetId String
+  asset   Asset @relation(fields: [assetId], references: [assetId])
+  availableBalance Decimal @default(0) @db.Decimal(30, 8)
+  lockedBalance Decimal @default(0) @db.Decimal(30, 8)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, assetId])
+}
+
+
+
+model WalletTransaction {
+  walletTransactionId String @id @default(cuid())
+
+  userId String
+
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [assetId])
+
+  amount Decimal @db.Decimal(30, 8)
+
+  type WalletTransactionType
+
+  status WalletTransactionStatus
+
+  referenceId String?
+
+  createdAt DateTime @default(now())
+}
+
+
+model Ledger {
+  ledgerId String @id @default(cuid())
+
+  userId String
+
+  assetId String
+  asset Asset @relation(fields: [assetId], references: [assetId])
+
+  entryType LedgerEntryType
+
+  amount Decimal @db.Decimal(30, 8)
+
+  referenceId String
+
+  referenceType LedgerReferenceType
+
+  createdAt DateTime @default(now())
+}
+
+
+
+
+
+
+
 
 enum DepositStatus {
   PENDING
   CONFIRMING
   COMPLETED
   FAILED
+}
+
+
+enum LedgerEntryType {
+  CREDIT
+  DEBIT
+}
+
+enum LedgerReferenceType {
+  DEPOSIT
+  WITHDRAWAL
+  TRADE
+  FEE
+  ADJUSTMENT
+}
+
+
+enum WalletTransactionType {
+  DEPOSIT
+  WITHDRAW
+  TRADE
+  AIRDROP
+  REFERRAL
+  ADJUSTMENT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
 }

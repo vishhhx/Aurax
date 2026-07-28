@@ -1,5 +1,5 @@
 import { createLogger } from "@repo/logger";
 
-const logger = createLogger("api-gateway");
+const logger = createLogger("websocktserver");
 
 export default logger;

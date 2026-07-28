@@ -27,4 +27,30 @@ export class DepositService {
   async updateOrderId(depositId: string, orderId: string) {
     return this.depositRepository.updateOrderId(depositId, orderId);
   }
+
+  async conformPayment({
+    orderId,
+    paymentId,
+  }: {
+    orderId: string;
+    paymentId: string;
+  }) {
+    return this.depositRepository.conformPayment({
+      orderId,
+      paymentId,
+      status: "CONFIRMING",
+    });
+  }
+
+  async completeDeposit({
+    orderId,
+    paymentId,
+  }: {
+    orderId: string;
+    paymentId: string;
+  }) {
+    return this.depositRepository.completePayment({
+      orderId,
+    });
+  }
 }
