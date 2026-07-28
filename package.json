@@ -9,6 +9,7 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "prettier": "^3.7.4",
     "prisma": "^7.8.0",
     "turbo": "^2.9.12",

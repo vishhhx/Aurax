@@ -4,8 +4,7 @@ import { Request, Response } from "express";
 import { GithubOauthService, googleOauthService } from "../services/oauth";
 import { AuthService } from "../services/auth";
 import { oAuthUser } from "../types/auth";
-import { signToken } from "../utils/jwt";
-import { UserPayload } from "../types/jwt";
+import { signToken, UserPayload } from "@repo/core/jwt";
 import { ENV } from "../config/env";
 import { HttpStatus } from "../utils/httpStatus";
 import { IAuth } from "@repo/database";
@@ -75,7 +74,7 @@ export const googleCallBack = asyncHandler(
     }
 
     const payload: UserPayload = {
-      id: user._id.toString(),
+      userId: user._id.toString(),
       email: user.email,
       name: user.name,
     };
@@ -160,7 +159,7 @@ export const githubCallBack = asyncHandler(
     }
 
     const payload: UserPayload = {
-      id: user._id.toString(),
+      userId: user._id.toString(),
       email: user.email,
       name: user.name,
     };
