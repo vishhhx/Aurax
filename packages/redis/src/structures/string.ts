@@ -1,11 +1,6 @@
-import type { RedisClientType } from "redis";
 import { RedisBase } from "../base";
 
 export class RedisString extends RedisBase {
-  constructor(client: RedisClientType) {
-    super(client);
-  }
-
   async set(
     key: string,
     value: string | number,

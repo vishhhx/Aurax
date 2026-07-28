@@ -7,7 +7,7 @@ import {
   GoogleOAuthResponse,
   oAuthUser,
 } from "../types/auth";
-import { connectToredis, RedisString } from "@repo/redis";
+import { RedisString } from "@repo/redis";
 
 const SCOPES = ["openid", "email", "profile"];
 
@@ -101,8 +101,8 @@ export class GithubOauthService {
         scope: "read:user user:email",
         state,
       });
-      const redis = await connectToredis();
-      const redisString = new RedisString(redis);
+
+      const redisString = new RedisString();
       await redisString.set(`oauth:github:${state}`, state, { EX: 300 });
       return {
         url: `https://github.com/login/oauth/authorize?${params.toString()}`,
@@ -116,8 +116,8 @@ export class GithubOauthService {
 
   async githubCallback(code: string, state: string): Promise<oAuthUser> {
     try {
-      const redis = await connectToredis();
-      const redisString = new RedisString(redis);
+
+      const redisString = new RedisString();
 
       const storedState = await redisString.get(`oauth:github:${state}`);
 

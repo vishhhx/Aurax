@@ -22,3 +22,11 @@ export const connectToredis = async () => {
     throw new Error("Failed to connect to Redis");
   }
 };
+
+export function getRedisClient() {
+  if (!client) {
+    throw new Error("Redis is not connected");
+  }
+
+  return client;
+}

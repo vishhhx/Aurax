@@ -4,10 +4,11 @@ import { Request, Response } from "express";
 import { GithubOauthService, googleOauthService } from "../services/oauth";
 import { AuthService } from "../services/auth";
 import { oAuthUser } from "../types/auth";
-import { signToken, UserPayload } from "@repo/core/jwt";
+import { UserPayload } from "@repo/core/jwt";
 import { ENV } from "../config/env";
 import { HttpStatus } from "../utils/httpStatus";
 import { IAuth } from "@repo/database";
+import { issueAuthTokens, setAuthCookies } from "../utils/auth-tokens";
 
 function getQueryValue(value: unknown): string | undefined {
   if (Array.isArray(value)) {
@@ -78,27 +79,13 @@ export const googleCallBack = asyncHandler(
       email: user.email,
       name: user.name,
     };
-    const accessToken = signToken(payload, ENV.JWT_ACCESS_SECRET!, "15m");
-    const refreshToken = signToken(payload, ENV.JWT_REFRESH_SECRET!, "30d");
-    user.refreshTokenHash = refreshToken;
+    const tokens = await issueAuthTokens(payload, { req });
+    user.refreshTokenHash = tokens.refreshToken;
     user.lastLogin = new Date();
     await user.save();
     const redirectUrl = `${ENV.FRONTEND_URL}/auth/success`;
 
-    return res
-      .cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 15 * 60 * 1000,
-      })
-      .cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      })
-      .redirect(HttpStatus.FOUND, redirectUrl);
+    return setAuthCookies(res, tokens).redirect(HttpStatus.FOUND, redirectUrl);
   },
 );
 
@@ -163,26 +150,12 @@ export const githubCallBack = asyncHandler(
       email: user.email,
       name: user.name,
     };
-    const accessToken = signToken(payload, ENV.JWT_ACCESS_SECRET!, "15m");
-    const refreshToken = signToken(payload, ENV.JWT_REFRESH_SECRET!, "30d");
-    user.refreshTokenHash = refreshToken;
+    const tokens = await issueAuthTokens(payload, { req });
+    user.refreshTokenHash = tokens.refreshToken;
     user.lastLogin = new Date();
     await user.save();
     const redirectUrl = `${ENV.FRONTEND_URL}/auth/success`;
 
-    return res
-      .cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 15 * 60 * 1000,
-      })
-      .cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: ENV.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
-      })
-      .redirect(HttpStatus.FOUND, redirectUrl);
+    return setAuthCookies(res, tokens).redirect(HttpStatus.FOUND, redirectUrl);
   },
 );

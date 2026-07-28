@@ -1,7 +1,12 @@
-import type { RedisClientType } from "redis";
+import { type RedisClientType } from "redis";
+import { getRedisClient } from "./connect";
 
-export class RedisBase {
-  constructor(protected client: RedisClientType) {}
+export abstract class RedisBase {
+  protected client: RedisClientType;
+
+  constructor() {
+    this.client = getRedisClient();
+  }
 
   async delete(key: string) {
     return this.client.del(key);
@@ -14,7 +19,8 @@ export class RedisBase {
   async expire(key: string, seconds: number) {
     return this.client.expire(key, seconds);
   }
-  async ttl(key:string){
+
+  async ttl(key: string) {
     return this.client.ttl(key);
   }
 }

@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import { ApiError } from "@repo/core/rest";
 import { HttpStatus } from "../utils/httpStatus";
 export const validate =

@@ -1,3 +1,4 @@
+import { Request } from "express";
 import jwt from "jsonwebtoken";
 export interface UserPayload {
   userId: string;
@@ -22,7 +23,7 @@ export const verifyToken = (token: string, secret: string): UserPayload => {
     }
 
     return {
-      userId: decoded.userId    ,
+      userId: decoded.userId,
       email: decoded.email,
       name: decoded.name,
     };
@@ -52,5 +53,14 @@ export const extractSocketToken = (socket: any): string | null => {
     return headerToken.slice(7).trim();
   }
 
+  return null;
+};
+
+export const extractBearerToken = (req: Request): string | null => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    return token;
+  }
   return null;
 };

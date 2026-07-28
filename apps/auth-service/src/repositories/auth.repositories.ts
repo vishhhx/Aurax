@@ -24,4 +24,12 @@ export class AuthRepository {
       throw new Error("Error finding user");
     }
   }
+  async findUserById(userId: string) {
+    try {
+      const user = await AuthModel.findById(userId);
+      return user;
+    } catch (error) {
+      throw new Error("Error finding user");
+    }
+  }
 }

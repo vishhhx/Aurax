@@ -1,9 +1,9 @@
 import type { Server, Socket } from "socket.io";
 
-import { connectToredis, RedisString } from "@repo/redis";
+import { RedisString } from "@repo/redis";
 import logger from "../config/logger";
-const client = await connectToredis();
-const redisClient = new RedisString(client);
+
+const redisClient = new RedisString();
 type SocketAuthUser = {
   userId: string;
 };
