@@ -9,5 +9,8 @@
   "devDependencies": {
     "@types/bun": "latest",
     "typescript": "^5"
+  },
+  "scripts": {
+    "kafka": "bun src/kafka/create-topics.ts "
   }
 }
