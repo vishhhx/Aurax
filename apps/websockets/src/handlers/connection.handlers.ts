@@ -1,6 +1,6 @@
 import type { Server, Socket } from "socket.io";
 
-import { RedisString } from "@repo/redis";
+import { SocketRepository } from "../utils/redis";
 import logger from "../config/logger";
 
 type SocketAuthUser = {
@@ -11,11 +11,10 @@ export const handleSocketConnection = async (
   io: Server,
   authUser: SocketAuthUser,
 ) => {
-  const redisClient = new RedisString();
   try {
     const { userId } = authUser;
     logger.info(`User ${userId} connected with socket: ${socket.id}`);
-    await redisClient.set(`socket:${userId}`, socket.id, { EX: 3600 });
+    await SocketRepository.add(`socket:${userId}`, socket.id);
   } catch (error: any) {
     logger.error("Error occurred while handling socket connection:", error);
   }
@@ -25,10 +24,9 @@ export const handleSocketDisconnect = async (
   socket: Socket,
   userId: string,
 ) => {
-  const redisClient = new RedisString();
   logger.info(` User disconnected: ${userId}) Socket ID: ${socket.id}`);
   try {
-    const result = await redisClient.delete(`socket:${userId}`);
+    const result = await SocketRepository.remove(userId, socket.id);
     logger.info(
       `Socket ID for user ${userId} removed from Redis. Result: ${result}`,
     );
