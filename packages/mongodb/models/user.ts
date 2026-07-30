@@ -16,7 +16,9 @@ export interface IAuth extends Document {
 
   lastLogin?: Date;
   name: string;
-  provider: "local" | "google";
+  provider: "local" | "google" | "github";
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const authSchema = new Schema<IAuth>(

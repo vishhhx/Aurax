@@ -15,7 +15,9 @@ import { issueAuthTokens, setAuthCookies } from "../utils/auth-tokens";
 
 export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response) => {
-    const refreshToken = extractBearerToken(req);
+    // Prefer an explicitly supplied bearer token for non-browser clients;
+    // browsers send the HttpOnly refresh-token cookie automatically.
+    const refreshToken = extractBearerToken(req) ?? req.cookies?.refreshToken;
 
     if (!refreshToken) {
       return res
@@ -30,10 +32,21 @@ export const refreshTokenController = asyncHandler(
         );
     }
 
-    const payload = verifyToken(
-      refreshToken,
-      ENV.JWT_REFRESH_SECRET!,
-    ) as UserPayload;
+    let payload: UserPayload;
+    try {
+      payload = verifyToken(refreshToken, ENV.JWT_REFRESH_SECRET!);
+    } catch {
+      return res
+        .status(HttpStatus.UNAUTHORIZED)
+        .json(
+          new ApiReponse(
+            false,
+            null,
+            "Invalid or expired refresh token.",
+            HttpStatus.UNAUTHORIZED,
+          ),
+        );
+    }
 
     const storedToken = await getSessionToken(refreshToken);
 

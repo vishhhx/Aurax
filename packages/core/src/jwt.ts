@@ -1,5 +1,6 @@
-import { Request } from "express";
+import type { Request } from "express";
 import jwt from "jsonwebtoken";
+
 export interface UserPayload {
   userId: string;
   name: string;
@@ -60,7 +61,7 @@ export const extractBearerToken = (req: Request): string | null => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.split(" ")[1];
-    return token;
+    return token ?? null;
   }
   return null;
 };

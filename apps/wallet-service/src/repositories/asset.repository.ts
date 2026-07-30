@@ -1,4 +1,5 @@
 import { prisma } from "@repo/pg";
+
 export class AssetRepository {
   async getAssetIdBySymbol(symbol: string) {
     return prisma.asset.findFirst({
@@ -9,5 +10,9 @@ export class AssetRepository {
         assetId: true,
       },
     });
+  }
+
+  async getAllAssets() {   
+    return prisma.asset.findMany();
   }
 }

@@ -1,14 +1,14 @@
-import { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import logger from "../config/logger";
 import { HttpStatus } from "../utils/httpStatus";
 
 export const errorMiddleware = (
   err: any,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ) => {
-  logger.error(err.message);
+  logger.error(err);
 
   return res.status(err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR).json({
     success: false,

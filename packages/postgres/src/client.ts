@@ -1,8 +1,14 @@
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+const connectionString = process.env.PG_DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("PG_DATABASE_URL is required to connect to PostgreSQL.");
+}
+
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
 });
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };

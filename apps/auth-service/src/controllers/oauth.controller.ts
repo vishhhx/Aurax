@@ -9,6 +9,7 @@ import { ENV } from "../config/env";
 import { HttpStatus } from "../utils/httpStatus";
 import { IAuth } from "@repo/database";
 import { issueAuthTokens, setAuthCookies } from "../utils/auth-tokens";
+import { encryptPayload } from "../utils/crypto";
 
 function getQueryValue(value: unknown): string | undefined {
   if (Array.isArray(value)) {
@@ -79,10 +80,13 @@ export const googleCallBack = asyncHandler(
       email: user.email,
       name: user.name,
     };
+
     const tokens = await issueAuthTokens(payload, { req });
+
     user.refreshTokenHash = tokens.refreshToken;
     user.lastLogin = new Date();
     await user.save();
+
     const redirectUrl = `${ENV.FRONTEND_URL}/auth/success`;
 
     return setAuthCookies(res, tokens).redirect(HttpStatus.FOUND, redirectUrl);
@@ -154,7 +158,8 @@ export const githubCallBack = asyncHandler(
     user.refreshTokenHash = tokens.refreshToken;
     user.lastLogin = new Date();
     await user.save();
-    const redirectUrl = `${ENV.FRONTEND_URL}/auth/success`;
+
+    const redirectUrl = `${ENV.FRONTEND_URL}/auth/success}`;
 
     return setAuthCookies(res, tokens).redirect(HttpStatus.FOUND, redirectUrl);
   },

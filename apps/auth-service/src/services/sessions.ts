@@ -8,11 +8,15 @@ export interface sessionPlayload {
   createdAt: Date;
   expiresAt: Date;
 }
+
+const REFRESH_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
+
 export const generateSessionToken = async (playload: sessionPlayload) => {
   const data = JSON.stringify(playload);
   const redisClient = new RedisString();
   await redisClient.set(`session:${playload.refreshToken}`, data, {
-    EX: 60 * 60 * 24 * 7,
+    // Keep the server-side session for the same lifetime as the refresh JWT.
+    EX: REFRESH_SESSION_TTL_SECONDS,
   });
   return playload.refreshToken;
 };

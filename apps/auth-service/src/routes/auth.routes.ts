@@ -1,8 +1,8 @@
-// import { Router } from "express";
-// export const router = Router();
-// import { register } from "../controllers/auth.controller";
-// import { validate } from "../middleware/validation.middleware";
-// import { RegisterSchema } from "../validators/auth.validator";
+import { Router } from "express";
+import { getUserDetails } from "../controllers/auth.controller";
+import { authenticate } from "../middleware/auth.middleware";
 
-// router.post("/register", validate(RegisterSchema), register);
+export const authRouter = Router();
 
+authRouter.get("/details", authenticate, getUserDetails);
+authRouter.get("/user-details", authenticate, getUserDetails);

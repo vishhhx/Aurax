@@ -8,8 +8,7 @@ export const authenticate = (
   next: NextFunction,
 ) => {
   try {
-    const token = extractBearerToken(req);
-
+    const token = extractBearerToken(req) ?? req.cookies?.accessToken;
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -17,10 +16,7 @@ export const authenticate = (
       });
     }
 
-    const payload = verifyToken(
-      token,
-      ENV.JWT_ACCESS_SECRET!,
-    ) as UserPayload;
+    const payload = verifyToken(token, ENV.JWT_ACCESS_SECRET!) as UserPayload;
 
     req.user = payload;
 

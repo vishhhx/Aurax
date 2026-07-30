@@ -5,11 +5,20 @@ import { RazorpayService } from "../services/razorpay";
 export const depositeinitialize = asyncHandler(
   async (req: Request, res: Response) => {
     const { amount } = req.body;
-    const { userId } = req.user;
-    const amountInPaise = amount * 100; // Convert amount to paise
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res
+        .status(401)
+        .json(new ApiReponse(false, null, "User not authenticated", 401));
+    }
+    const usdcPriceInInr = 95.72;
+    const usdcAmount = amount / usdcPriceInInr;
+
+    const amountInPaise = amount * 100;
+
     const depositeService = new DepositService();
     const deposit = await depositeService.createDeposit({
-      amount: amountInPaise,
+      amount: usdcAmount,
       userId,
       assetId: "USDC",
     });
@@ -101,14 +110,12 @@ export const RazorpayWebhook = asyncHandler(
           orderId: payment.order_id,
           paymentId: payment.id,
         });
-        
 
         break;
       }
       default:
         break;
     }
-
 
     return res
       .status(200)

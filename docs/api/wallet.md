@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Wallet Service manages deposits, withdrawals, balances, and payment integrations.
+The Wallet Service manages deposits, withdrawals, balances, assets, and payment integrations.
 
 Base Route
 
@@ -18,6 +18,66 @@ All Wallet APIs require a valid Access Token.
 
 ```text
 Authorization: Bearer <access_token>
+```
+
+---
+
+# Get Assets and Wallet Balances
+
+Fetches all supported assets from the `Asset` table along with the authenticated user's wallet balances (`availableBalance`, `lockedBalance`). If an asset is not yet present in the user's wallet, its balances default to `0`.
+
+## Endpoint
+
+```text
+GET /wallet/assets
+```
+
+## Authentication
+
+Required (`Authorization: Bearer <access_token>`)
+
+## Success Response
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "assetId": "asset_usdc_123",
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "imageUrl": "https://example.com/usdc.png",
+      "decimals": 6,
+      "network": "Ethereum",
+      "depositEnabled": true,
+      "withdrawalEnabled": true,
+      "minDeposit": "10.00000000",
+      "minWithdrawal": "10.00000000",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "availableBalance": "500.00000000",
+      "lockedBalance": "0.00000000"
+    },
+    {
+      "assetId": "asset_btc_456",
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "imageUrl": "https://example.com/btc.png",
+      "decimals": 8,
+      "network": "Bitcoin",
+      "depositEnabled": true,
+      "withdrawalEnabled": true,
+      "minDeposit": "0.00100000",
+      "minWithdrawal": "0.00100000",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z",
+      "availableBalance": 0,
+      "lockedBalance": 0
+    }
+  ],
+  "message": "Assets and wallet details retrieved successfully",
+  "statusCode": 200
+}
 ```
 
 ---

@@ -12,9 +12,10 @@ export const handleSocketConnection = async (
   authUser: SocketAuthUser,
 ) => {
   try {
+    const socketRepo = new SocketRepository();
     const { userId } = authUser;
     logger.info(`User ${userId} connected with socket: ${socket.id}`);
-    await SocketRepository.add(`socket:${userId}`, socket.id);
+    await socketRepo.add(`socket:${userId}`, socket.id);
   } catch (error: any) {
     logger.error("Error occurred while handling socket connection:", error);
   }
@@ -26,7 +27,8 @@ export const handleSocketDisconnect = async (
 ) => {
   logger.info(` User disconnected: ${userId}) Socket ID: ${socket.id}`);
   try {
-    const result = await SocketRepository.remove(userId, socket.id);
+    const socketRepo = new SocketRepository();
+    const result = await socketRepo.remove(userId, socket.id);
     logger.info(
       `Socket ID for user ${userId} removed from Redis. Result: ${result}`,
     );

@@ -13,7 +13,8 @@ export interface DepositCompletedEvent {
 
 export const handleDepositCompleted = async (event: DepositCompletedEvent) => {
   const io = getGlobalIO();
-  const sockets = await SocketRepository.get(event.userId);
+  const socketRepo = new SocketRepository();
+  const sockets = await socketRepo.get(event.userId);
 
   if (!sockets.length) {
     return;
