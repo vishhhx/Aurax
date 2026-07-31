@@ -91,27 +91,23 @@ export class DepositRepository {
           },
         });
 
-        const updatedWallet = await tx.wallet.update({
+        const wallet = await tx.wallet.upsert({
           where: {
             userId_assetId: {
               userId: deposit.userId,
               assetId: deposit.assetId,
             },
           },
-          data: {
+          update: {
             availableBalance: {
               increment: deposit.amount,
             },
           },
-        });
-        await tx.walletTransaction.create({
-          data: {
+          create: {
             userId: deposit.userId,
             assetId: deposit.assetId,
-            amount: deposit.amount,
-            type: WalletTransactionType.DEPOSIT,
-            status: WalletTransactionStatus.SUCCESS,
-            referenceId: deposit.depositId,
+            availableBalance: deposit.amount,
+            lockedBalance: 0,
           },
         });
 
@@ -132,7 +128,7 @@ export class DepositRepository {
           depositId: deposit.depositId,
           assetId: deposit.assetId,
           amount: deposit.amount.toString(),
-          balance: updatedWallet.availableBalance.toString(),
+          balance: wallet.availableBalance.toString(),
           timestamp: new Date().toISOString(),
         });
 

@@ -22,6 +22,7 @@ export class DepositService {
     }
     return this.depositRepository.createDeposit({
       ...data,
+      assetId: asset.assetId,
     });
   }
   async updateOrderId(depositId: string, orderId: string) {

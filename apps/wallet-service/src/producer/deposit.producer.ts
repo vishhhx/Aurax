@@ -13,18 +13,16 @@ export interface DepositCompletedEvent {
 
 export async function publishDepositCompletedEvent(
   payload: DepositCompletedEvent,
-): Promise<void> {
+) {
   await producer.send({
     topic: TOPICS.DEPOSIT_EVENTS,
     compression: CompressionTypes.GZIP,
+    acks: -1,
     messages: [
       {
         key: payload.userId,
         value: JSON.stringify(payload),
       },
     ],
-    acks: -1,
   });
-
-  await producer.disconnect();
 }

@@ -45,20 +45,17 @@ export const verifyPayments = asyncHandler(
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
       req.body;
     const razorpayService = new RazorpayService();
-
     const depositeService = new DepositService();
     const isValid = razorpayService.verifyPaymentSignature({
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
       signature: razorpay_signature,
     });
-
     if (!isValid) {
       return res
         .status(400)
         .json(new ApiReponse(false, null, "Invalid payment signature", 400));
     }
-
     await depositeService.conformPayment({
       orderId: razorpay_order_id,
       paymentId: razorpay_payment_id,
@@ -80,29 +77,31 @@ export const verifyPayments = asyncHandler(
 
 export const RazorpayWebhook = asyncHandler(
   async (req: Request, res: Response) => {
-    const signature = req.headers["x-razorpay-signature"];
+    console.log("Webhook reached");
+    console.log(JSON.stringify(req.body));
+    const signature = req.headers["x-razorpay-signature"] as string;
+
     if (!signature) {
       return res
         .status(401)
         .json(new ApiReponse(false, null, "Missing webhook signature", 401));
     }
 
+    const rawBody = req.body.toString("utf8");
+
     const razorpayService = new RazorpayService();
-    const rawBody = req.body.toString();
-    const isvaild = razorpayService.verifyWebhookSignature(
-      rawBody,
-      signature.toString(),
-    );
-    if (!isvaild) {
+
+    const isValid = razorpayService.verifyWebhookSignature(rawBody, signature);
+    if (!isValid) {
       return res
         .status(401)
         .json(new ApiReponse(false, null, "Invalid webhook signature", 401));
     }
+    const body = JSON.parse(rawBody);
 
-    const event = req.body.event;
-    switch (event) {
+    switch (body.event) {
       case "payment.captured": {
-        const payment = req.body.payload.payment.entity;
+        const payment = body.payload.payment.entity;
 
         const depositService = new DepositService();
 
@@ -113,12 +112,13 @@ export const RazorpayWebhook = asyncHandler(
 
         break;
       }
+
       default:
-        break;
+        console.log(body.event);
     }
 
     return res
       .status(200)
-      .json(new ApiReponse(true, null, "Webhook processed successfully", 200));
+      .json(new ApiReponse(true, null, "Webhook processed", 200));
   },
 );

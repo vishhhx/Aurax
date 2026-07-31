@@ -15,4 +15,12 @@ export const TOPICS = {
 
 export const producer = kafka.producer();
 
+export async function connectKafka() {
+  await producer.connect();
+}
+
+export async function disconnectKafka() {
+  await producer.disconnect();
+}
+
 export const consumer = (groupId: string) => kafka.consumer({ groupId });

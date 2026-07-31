@@ -33,16 +33,18 @@ export class RazorpayService {
       .digest("hex");
     return generatedSignature === signature;
   }
-
-  verifyWebhookSignature(payload: string, signature: string): boolean {
+  verifyWebhookSignature(payload: string, signature: string) {
     const expectedSignature = crypto
       .createHmac("sha256", ENV.RAZORPAY_WEBHOOK_SECRET!)
       .update(payload)
       .digest("hex");
 
-    return crypto.timingSafeEqual(
-      Buffer.from(expectedSignature),
-      Buffer.from(signature),
-    );
+    console.log({
+      payloadLength: payload.length,
+      expectedSignature,
+      receivedSignature: signature,
+    });
+
+    return expectedSignature === signature;
   }
 }

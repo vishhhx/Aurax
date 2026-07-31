@@ -79,10 +79,6 @@ const authSlice = createSlice({
       .addCase(fetchUserDetails.rejected, (state, action) => {
         state.user = null
         const error = action.payload
-
-        // A missing/expired cookie is an ordinary signed-out state. Do not
-        // redirect on a network or 5xx failure: that would turn an outage into
-        // a false logout.
         if (error?.status === 401 || error?.status === 403) {
           state.status = "unauthenticated"
           state.error = null

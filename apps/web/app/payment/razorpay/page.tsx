@@ -17,6 +17,9 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
+import { api } from "@/lib/axios"
+import { useAppSelector } from "@/hooks/useRedux"
+import { useRouter } from "next/navigation"
 
 const usdcPrice = 95.72
 
@@ -28,12 +31,115 @@ function formatInr(value: number) {
   }).format(value)
 }
 
+function loadScript(src: string) {
+  return new Promise((resolve) => {
+    const script = document.createElement("script")
+    script.src = src
+    script.onload = () => {
+      resolve(true)
+    }
+    script.onerror = () => {
+      resolve(false)
+    }
+    document.body.appendChild(script)
+  })
+}
+
 export default function RazorpayPaymentPage() {
   const [amount, setAmount] = useState("1000")
-
+  const { user } = useAppSelector((state) => state.auth)
   const spend = Math.max(Number(amount) || 0, 0)
-
+  const router = useRouter()
   const receive = useMemo(() => spend / usdcPrice, [spend])
+
+  const handleRazorPayment = async () => {
+    const res = await loadScript("https://checkout.razorpay.com/v1/checkout.js")
+    alert(process.env.RAZORPAY_KEY)
+    if (!res) {
+      alert("Razropay failed to load!!")
+      return
+    }
+
+    const { data } = await api("/api/v1/wallet/payment/razorpay/init-deposit", {
+      method: "POST",
+      data: {
+        amount: amount,
+      },
+    })
+    const receipt = data.data
+    console.log(data.data)
+    const options = {
+      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY || "rzp_test_TGF5zfMyKqMfVj",
+      amount: receipt.amount,
+      currency: receipt.currency,
+      order_id: receipt.id,
+
+      name: "AuraX Exchange",
+
+      description:
+        "Securely deposit INR to fund your AuraX wallet and purchase USDC instantly.",
+
+      image:
+        "https://res.cloudinary.com/dpczfq0lo/image/upload/v1785492405/aurax_exchange_logo_ok9ni5.png",
+
+      prefill: {
+        name: user?.name ?? "",
+        email: user?.email ?? "",
+      },
+
+      notes: {
+        platform: "AuraX Exchange",
+        purpose: "Wallet Deposit",
+        asset: "USDC",
+        wallet: "Spot Wallet",
+        receipt: receipt.receipt,
+      },
+
+      theme: {
+        color: "#2563EB",
+      },
+
+      modal: {
+        backdropclose: false,
+        escape: true,
+        animation: true,
+        confirm_close: true,
+        ondismiss: () => {
+          console.log("Checkout closed by user")
+        },
+      },
+
+      retry: {
+        enabled: true,
+        max_count: 3,
+      },
+
+      handler: async function (response: any) {
+        console.log(response)
+
+        try {
+          const { data } = await api.post(
+            "/api/v1/wallet/payment/razorpay/verify",
+            {
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+            }
+          )
+
+          console.log(data)
+
+          router.push("/dashboard/wallet")
+        } catch (err) {
+          console.error(err)
+          alert("Payment verification failed.")
+        }
+      },
+    }
+
+    const paymentObject = new window.Razorpay(options)
+    paymentObject.open()
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -142,6 +248,8 @@ export default function RazorpayPaymentPage() {
           <Button
             className="h-11 w-full rounded-xl text-sm font-medium"
             disabled={spend < 100}
+
+            onClick={handleRazorPayment}
           >
             Continue to Razorpay
           </Button>
