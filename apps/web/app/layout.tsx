@@ -3,6 +3,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ReduxProvider } from "@/components/providers"
 import { cn } from "@/lib/utils"
+import { SocketProvider } from "@/context/socketProvider"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -20,11 +21,18 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", inter.variable)}
+      className={cn(
+        "antialiased",
+        fontMono.variable,
+        "font-sans",
+        inter.variable
+      )}
     >
       <body>
         <ReduxProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <SocketProvider>
+            <ThemeProvider>{children}</ThemeProvider>
+          </SocketProvider>
         </ReduxProvider>
       </body>
     </html>
