@@ -24,6 +24,7 @@ import {
   handleSocketError,
 } from "./handlers/connection.handlers";
 import { setGlobalIO } from "./utils/socketManager";
+import { consumeDeposit } from "./consumer/deposit.consumer";
 
 setGlobalIO(io);
 
@@ -64,6 +65,11 @@ io.on("connection", (socket) => {
   });
 });
 
+function StartConsumingKafkaMessages() {
+  consumeDeposit();
+}
+
 httpServer.listen(ENV.PORT, () => {
+  StartConsumingKafkaMessages();
   logger.info(`websocket server is running on port ${ENV.PORT}`);
 });

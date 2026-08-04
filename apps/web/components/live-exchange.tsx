@@ -19,16 +19,34 @@ type LiveExchangeProps = {
   onTradeExecuted?: (trade: { side: "buy" | "sell"; price: number; size: number }) => void
 }
 
+const INITIAL_RECENT_TRADES: TradeRecord[] = [
+  { id: "initial-trade-0", time: "10:42:15", side: "buy", price: 12.38, size: 73.24 },
+  { id: "initial-trade-1", time: "10:41:15", side: "sell", price: 12.35, size: 44.81 },
+  { id: "initial-trade-2", time: "10:40:15", side: "buy", price: 12.33, size: 18.6 },
+  { id: "initial-trade-3", time: "10:39:15", side: "sell", price: 12.31, size: 62.47 },
+  { id: "initial-trade-4", time: "10:38:15", side: "buy", price: 12.36, size: 29.17 },
+  { id: "initial-trade-5", time: "10:37:15", side: "sell", price: 12.32, size: 81.06 },
+  { id: "initial-trade-6", time: "10:36:15", side: "buy", price: 12.34, size: 36.92 },
+  { id: "initial-trade-7", time: "10:35:15", side: "sell", price: 12.3, size: 54.38 },
+]
+
+// A seeded generator keeps the SSR chart and initial client render identical.
+const createSeededRandom = (seed: number) => () => {
+  seed = (seed * 1664525 + 1013904223) >>> 0
+  return seed / 4294967296
+}
+
 // Helper to generate 45 initial continuous candles
 const generateInitialCandles = () => {
   const list: Candle[] = []
+  const random = createSeededRandom(42)
   let close = 12.10
   for (let i = 0; i < 45; i++) {
     const open = close
-    const change = (Math.random() - 0.47) * 0.22
+    const change = (random() - 0.47) * 0.22
     close = Number((open + change).toFixed(2))
-    const high = Number((Math.max(open, close) + Math.random() * 0.1).toFixed(2))
-    const low = Number((Math.min(open, close) - Math.random() * 0.1).toFixed(2))
+    const high = Number((Math.max(open, close) + random() * 0.1).toFixed(2))
+    const low = Number((Math.min(open, close) - random() * 0.1).toFixed(2))
     list.push({ open, high, low, close })
   }
   return list
@@ -58,21 +76,15 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
 
   // Keep track of ticks to decide when to roll a new candle (every 5 ticks = 12.5s)
   const tickCounterRef = useRef(0)
+  const tradeIdRef = useRef(0)
+
+  const createTradeId = (prefix: string) => {
+    tradeIdRef.current += 1
+    return `${prefix}-${tradeIdRef.current}`
+  }
 
   // Recent Trades State
-  const [recentTrades, setRecentTrades] = useState<TradeRecord[]>(() => {
-    return Array.from({ length: 8 }).map((_, i) => ({
-      id: `initial-trade-${i}`,
-      time: new Date(Date.now() - i * 60000).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      }),
-      side: Math.random() > 0.5 ? "buy" : "sell",
-      price: Number((12.3 + Math.random() * 0.1).toFixed(2)),
-      size: Number((Math.random() * 80 + 5).toFixed(2)),
-    }))
-  })
+  const [recentTrades, setRecentTrades] = useState<TradeRecord[]>(INITIAL_RECENT_TRADES)
 
   // Simulated Order Book State
   const [orderBook, setOrderBook] = useState<{
@@ -171,7 +183,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
           const tradeSize = Number((Math.random() * 150 + 2).toFixed(2))
           const side = tick >= 0 ? "buy" : "sell"
           const newTrade: TradeRecord = {
-            id: `trade-${Date.now()}`,
+            id: createTradeId("trade"),
             time: new Date().toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -285,7 +297,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
     // Insert to recent trades
     const userTradePrice = Number(orderPrice.toFixed(2))
     const userTradeRecord: TradeRecord = {
-      id: `user-trade-${Date.now()}`,
+      id: createTradeId("user-trade"),
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",

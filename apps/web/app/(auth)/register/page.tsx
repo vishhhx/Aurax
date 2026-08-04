@@ -160,6 +160,7 @@ export default function RegisterPage() {
             <Label htmlFor="fullName" className="text-sm font-medium">Full name</Label>
             <Input
               id="fullName" name="fullName" type="text" placeholder="John Doe"
+              autoComplete="name"
               value={formData.fullName} onChange={handleChange} required className="h-10"
               disabled={isLoading || oauthLoading !== null}
             />
@@ -170,6 +171,7 @@ export default function RegisterPage() {
             <Label htmlFor="email" className="text-sm font-medium">Email address</Label>
             <Input
               id="email" name="email" type="email" placeholder="you@example.com"
+              autoComplete="email"
               value={formData.email} onChange={handleChange} required className="h-10"
               disabled={isLoading || oauthLoading !== null}
             />
@@ -181,6 +183,7 @@ export default function RegisterPage() {
             <div className="relative">
               <Input
                 id="password" name="password" type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
                 placeholder="Create a strong password" value={formData.password}
                 onChange={handleChange} required className="h-10 pr-10"
                 disabled={isLoading || oauthLoading !== null}
@@ -199,6 +202,7 @@ export default function RegisterPage() {
             <div className="relative">
               <Input
                 id="confirmPassword" name="confirmPassword" type={showConfirm ? "text" : "password"}
+                autoComplete="new-password"
                 placeholder="Confirm your password" value={formData.confirmPassword}
                 onChange={handleChange} required className="h-10 pr-10"
                 disabled={isLoading || oauthLoading !== null}

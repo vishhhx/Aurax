@@ -66,7 +66,7 @@ export default function AuthLayout({
 
           <div className="relative mx-auto flex w-full flex-col items-center justify-center max-w-lg gap-12 px-12 py-16 text-center">
             {/* Logo Section */}
-            <div className="space-y-6 opacity-0 animate-fade-in-up">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500 fill-mode-forwards">
               <div className="flex justify-center">
                 <div className="group relative">
                   <div className="absolute -inset-4 bg-gradient-to-br from-primary/20 to-emerald-500/20 rounded-lg blur-lg group-hover:blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
@@ -92,10 +92,10 @@ export default function AuthLayout({
             </div>
 
             {/* Separator */}
-            <Separator className="w-12 opacity-0 animate-fade-in-up" style={{ animationDelay: "0.15s" }} />
+            <Separator className="w-12 animate-in fade-in slide-in-from-bottom-3 duration-500 fill-mode-forwards" style={{ animationDelay: "0.15s" }} />
 
             {/* Features Grid */}
-            <div className="flex w-full flex-col gap-3 opacity-0" style={{ animation: "fadeInUp 0.6s ease-out 0.25s forwards" }}>
+            <div className="flex w-full flex-col gap-3 animate-in fade-in slide-in-from-bottom-3 duration-500 fill-mode-forwards" style={{ animationDelay: "0.25s" }}>
               {features.map((feature) => (
                 <div
                   key={feature.id}
@@ -147,7 +147,7 @@ export default function AuthLayout({
         </section>
 
         {/* Right Side - Auth Forms */}
-        <section className="flex items-center justify-center px-6 py-12 sm:px-12 opacity-0 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
+        <section className="flex items-center justify-center px-6 py-12 sm:px-12 animate-in fade-in slide-in-from-bottom-3 duration-500 fill-mode-forwards" style={{ animationDelay: "0.2s" }}>
           <div className="w-full max-w-md">{children}</div>
         </section>
       </div>

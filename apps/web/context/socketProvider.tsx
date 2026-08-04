@@ -1,13 +1,12 @@
 "use client"
 
-import { createContext, useContext, useEffect } from "react"
-
+import { createContext, useContext, useEffect, useMemo } from "react"
 import { getSocket } from "@/lib/socket"
 
 const SocketContext = createContext(getSocket())
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const socket = getSocket()
+  const socket = useMemo(() => getSocket(), [])
 
   useEffect(() => {
     socket.connect()
