@@ -67,6 +67,20 @@
         "typescript": "^5",
       },
     },
+    "apps/engine": {
+      "name": "@repo/engine",
+      "dependencies": {
+        "@repo/logger": "*",
+        "@repo/pg": "*",
+        "@repo/redis": "*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "apps/wallet-service": {
       "name": "@repo/wallet-service",
       "dependencies": {
@@ -635,6 +649,8 @@
     "@repo/core": ["@repo/core@workspace:packages/core"],
 
     "@repo/database": ["@repo/database@workspace:packages/mongodb"],
+
+    "@repo/engine": ["@repo/engine@workspace:apps/engine"],
 
     "@repo/eslint-config": ["@repo/eslint-config@workspace:packages/eslint-config"],
 

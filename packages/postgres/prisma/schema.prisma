@@ -31,6 +31,8 @@ model Asset {
   wallets            Wallet[]
   walletTransactions WalletTransaction[]
   Ledger Ledger[]
+    baseMarkets  Market[] @relation("BaseAsset")
+  quoteMarkets Market[] @relation("QuoteAsset")
 }
 
 model Deposit {
@@ -110,6 +112,57 @@ model Ledger {
 
 
 
+
+
+
+model Market{
+  marketId String @id @default(cuid())
+  symbol String @unique 
+
+  baseAssetId String
+  quoteAssetId String
+
+  baseAsset  Asset @relation("BaseAsset", fields: [baseAssetId], references: [assetId])
+  quoteAsset Asset @relation("QuoteAsset", fields: [quoteAssetId], references: [assetId])
+
+ status MarketStatus @default(TRADING)
+
+  tickSize Decimal @db.Decimal(30, 18)
+  stepSize Decimal @db.Decimal(30, 18)
+
+  minPrice Decimal @db.Decimal(30, 18)
+  maxPrice Decimal @db.Decimal(30, 18)
+
+  minQuantity Decimal @db.Decimal(30, 18)
+  maxQuantity Decimal @db.Decimal(30, 18)
+
+  minNotional Decimal @db.Decimal(30, 18)
+
+  makerFee Decimal @db.Decimal(10, 8)
+  takerFee Decimal @db.Decimal(10, 8)
+
+  pricePrecision Int
+  quantityPrecision Int
+
+  isEnabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([baseAssetId])
+  @@index([quoteAssetId])
+  
+}
+
+
+
+enum MarketStatus {
+  TRADING
+  HALTED
+  MAINTENANCE
+  CANCEL_ONLY
+  POST_ONLY
+}
 
 
 

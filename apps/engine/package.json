@@ -1,0 +1,20 @@
+{
+  "name": "@repo/engine",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "scripts": {
+    "dev": "bun src/persistence/recovery.ts"
+  },
+  "dependencies": {
+    "@repo/pg": "*",
+    "@repo/logger": "*",
+    "@repo/redis": "*"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
