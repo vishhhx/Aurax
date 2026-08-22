@@ -1,0 +1,7 @@
+export const ENV = {
+  PORT: process.env.PORT || 5002,
+  DATABASE_URL: process.env.DATABASE_URL,
+  NODE_ENV: process.env.NODE_ENV,
+  FRONTEND_URL: process.env.FRONTEND_URL,
+  JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET,
+};
