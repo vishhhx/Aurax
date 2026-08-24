@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package wallet;
+
+service WalletService {
+  rpc ReserveBalance (ReserveBalanceRequest)
+    returns (ReserveBalanceResponse);
+
+  rpc ReleaseBalance (ReleaseBalanceRequest)
+    returns (ReleaseBalanceResponse);
+}
+
+message ReserveBalanceRequest {
+  string user_id = 1;
+  string asset_symbol = 2;
+  string amount = 3;
+  string reference_id = 4;
+}
+
+message ReserveBalanceResponse {
+  bool success = 1;
+  string reservation_id = 2;
+  string error_code = 3;
+}
+
+message ReleaseBalanceRequest {
+  string reference_id = 1;
+}
+
+message ReleaseBalanceResponse {
+  bool success = 1;
+  string error_code = 2;
+}

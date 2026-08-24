@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 
-import { asyncHandler, ApiReponse } from "@repo/core/rest";
+import { asyncHandler, ApiReponse, ApiError } from "@repo/core/rest";
 import {
   extractBearerToken,
   type UserPayload,
@@ -20,47 +20,20 @@ export const refreshTokenController = asyncHandler(
     const refreshToken = extractBearerToken(req) ?? req.cookies?.refreshToken;
 
     if (!refreshToken) {
-      return res
-        .status(HttpStatus.UNAUTHORIZED)
-        .json(
-          new ApiReponse(
-            false,
-            null,
-            "Refresh token is required.",
-            HttpStatus.UNAUTHORIZED,
-          ),
-        );
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "Refresh token is required.");
     }
 
     let payload: UserPayload;
     try {
       payload = verifyToken(refreshToken, ENV.JWT_REFRESH_SECRET!);
     } catch {
-      return res
-        .status(HttpStatus.UNAUTHORIZED)
-        .json(
-          new ApiReponse(
-            false,
-            null,
-            "Invalid or expired refresh token.",
-            HttpStatus.UNAUTHORIZED,
-          ),
-        );
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "Invalid or expired refresh token.");
     }
 
     const storedToken = await getSessionToken(refreshToken);
 
     if (!storedToken) {
-      return res
-        .status(HttpStatus.UNAUTHORIZED)
-        .json(
-          new ApiReponse(
-            false,
-            null,
-            "Invalid refresh token.",
-            HttpStatus.UNAUTHORIZED,
-          ),
-        );
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "Invalid refresh token.");
     }
 
     const authRepository = new AuthRepository();
@@ -68,16 +41,7 @@ export const refreshTokenController = asyncHandler(
     const user = await authRepository.findUserById(payload.userId);
 
     if (!user) {
-      return res
-        .status(HttpStatus.UNAUTHORIZED)
-        .json(
-          new ApiReponse(
-            false,
-            null,
-            "User not found.",
-            HttpStatus.UNAUTHORIZED,
-          ),
-        );
+      throw new ApiError(HttpStatus.UNAUTHORIZED, "User not found.");
     }
 
     const jwtPayload: UserPayload = {

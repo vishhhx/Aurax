@@ -1,5 +1,6 @@
 import { DepositRepository } from "../repositories/deposit.repository";
 import { AssetRepository } from "../repositories/asset.repository";
+import { ApiError } from "@repo/core/rest";
 
 export interface CreateDepositInput {
   amount: number;
@@ -18,7 +19,7 @@ export class DepositService {
     //  for now phase 1 we will only support USDC deposits, so we will hardcode the assetId for USDC
     const asset = await this.assetRepository.getAssetIdBySymbol("USDC");
     if (!asset) {
-      throw new Error("Asset not found");
+      throw new ApiError(404, "Asset not found");
     }
     return this.depositRepository.createDeposit({
       ...data,

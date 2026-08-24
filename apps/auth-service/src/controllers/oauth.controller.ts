@@ -1,4 +1,4 @@
-import { asyncHandler, ApiReponse } from "@repo/core/rest";
+import { asyncHandler, ApiReponse, ApiError } from "@repo/core/rest";
 import { Request, Response } from "express";
 
 import { GithubOauthService, googleOauthService } from "../services/oauth";
@@ -9,7 +9,6 @@ import { ENV } from "../config/env";
 import { HttpStatus } from "../utils/httpStatus";
 import { IAuth } from "@repo/database";
 import { issueAuthTokens, setAuthCookies } from "../utils/auth-tokens";
-import { encryptPayload } from "../utils/crypto";
 
 function getQueryValue(value: unknown): string | undefined {
   if (Array.isArray(value)) {
@@ -48,16 +47,7 @@ export const googleCallBack = asyncHandler(
       getQueryValue(req.query.code) || getQueryValue(req.params.code);
 
     if (!code) {
-      return res
-        .status(HttpStatus.BAD_REQUEST)
-        .json(
-          new ApiReponse(
-            false,
-            null,
-            "Authorization code is required.",
-            HttpStatus.BAD_REQUEST,
-          ),
-        );
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Authorization code is required.");
     }
 
     const oauthService = new googleOauthService();
@@ -119,16 +109,7 @@ export const githubCallBack = asyncHandler(
       getQueryValue(req.query.state) || getQueryValue(req.params.state);
 
     if (!code || !state) {
-      return res
-        .status(HttpStatus.BAD_REQUEST)
-        .json(
-          new ApiReponse(
-            false,
-            null,
-            "Authorization code and state are required.",
-            HttpStatus.BAD_REQUEST,
-          ),
-        );
+      throw new ApiError(HttpStatus.BAD_REQUEST, "Authorization code and state are required.");
     }
 
     const oauthService = new GithubOauthService();

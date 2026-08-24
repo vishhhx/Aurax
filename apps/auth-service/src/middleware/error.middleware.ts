@@ -1,19 +1,37 @@
-import { Request, Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
+import { ApiError } from "@repo/core/rest";
 import logger from "../config/logger";
-import { HttpStatus } from "../utils/httpStatus";
 
 export const errorMiddleware = (
-  err: any,
-  req: Request,
+  err: unknown,
+  _req: Request,
   res: Response,
-  next: NextFunction,
+  _next: NextFunction,
 ) => {
-  logger.error(err.message);
+  logger.error(err);
 
-  return res.status(err.statusCode || HttpStatus.INTERNAL_SERVER_ERROR).json({
+  if (err instanceof ApiError) {
+    const apiError = err as ApiError;
+    return res.status(apiError.statusCode).json({
+      success: false,
+      data: null,
+      message: apiError.message,
+      errors: apiError.errors || [],
+      ...(process.env.NODE_ENV === "development" && apiError.stack ? { stack: apiError.stack } : {}),
+    });
+  }
+
+  const isDev = process.env.NODE_ENV === "development";
+  const message =
+    isDev && err instanceof Error ? err.message : "Internal Server Error";
+  const stack = isDev && err instanceof Error ? err.stack : undefined;
+
+  return res.status(500).json({
     success: false,
-    message: err.message || "Internal Server Error",
-    errors: err.errors || [],
-    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+    data: null,
+    message,
+    errors: [],
+    ...(stack ? { stack } : {}),
   });
 };
+

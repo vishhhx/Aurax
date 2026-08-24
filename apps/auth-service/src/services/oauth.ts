@@ -8,6 +8,7 @@ import {
   oAuthUser,
 } from "../types/auth";
 import { RedisString } from "@repo/redis";
+import { ApiError } from "@repo/core/rest";
 
 const SCOPES = ["openid", "email", "profile"];
 
@@ -36,11 +37,11 @@ export class googleOauthService {
       const { tokens } = await this.oauth2Client.getToken(code);
 
       if (!tokens.access_token) {
-        throw new Error("Google did not return an access token.");
+        throw new ApiError(400, "Google did not return an access token.");
       }
 
       if (!tokens.refresh_token) {
-        throw new Error("Google did not return a refresh token.");
+        throw new ApiError(400, "Google did not return a refresh token.");
       }
 
       this.oauth2Client.setCredentials(tokens);
@@ -59,9 +60,8 @@ export class googleOauthService {
         },
       };
     } catch (error) {
-      throw new Error("Failed to authenticate with Google.", {
-        cause: error,
-      });
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(400, "Failed to authenticate with Google.");
     }
   }
 
@@ -74,11 +74,11 @@ export class googleOauthService {
     const { data } = await oauth2.userinfo.get();
 
     if (!data.id) {
-      throw new Error("Google did not return the user id.");
+      throw new ApiError(400, "Google did not return the user id.");
     }
 
     if (!data.email) {
-      throw new Error("Google did not return the user email.");
+      throw new ApiError(400, "Google did not return the user email.");
     }
 
     return {
@@ -110,7 +110,7 @@ export class GithubOauthService {
       };
     } catch (error) {
       console.error("Failed to generate GitHub OAuth URL:", error);
-      throw new Error("Unable to generate GitHub authorization URL.");
+      throw new ApiError(500, "Unable to generate GitHub authorization URL.");
     }
   }
 
@@ -122,7 +122,7 @@ export class GithubOauthService {
       const storedState = await redisString.get(`oauth:github:${state}`);
 
       if (!storedState) {
-        throw new Error("Invalid or expired OAuth state.");
+        throw new ApiError(400, "Invalid or expired OAuth state.");
       }
 
       await redisString.delete(`oauth:github:${state}`);
@@ -146,19 +146,20 @@ export class GithubOauthService {
       );
 
       if (!response.ok) {
-        throw new Error(`GitHub returned ${response.status}`);
+        throw new ApiError(400, `GitHub returned ${response.status}`);
       }
 
       const data = (await response.json()) as GithubTokenResponse;
 
       if (!data.access_token) {
-        throw new Error("GitHub did not return an access token.");
+        throw new ApiError(400, "GitHub did not return an access token.");
       }
 
       return await this.getGithubProfile(data.access_token);
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       console.error("GitHub OAuth callback failed:", error);
-      throw new Error("GitHub authentication failed.");
+      throw new ApiError(400, "GitHub authentication failed.");
     }
   }
   private async getGithubProfile(token: string): Promise<oAuthUser> {

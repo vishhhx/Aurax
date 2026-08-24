@@ -12,14 +12,17 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
     "@repo/core": "*",
     "@repo/database": "*",
+    "@repo/grpc": "*",
     "@repo/kafka": "*",
     "@repo/logger": "*",
     "@repo/pg": "*",
     "@repo/redis": "*",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
+    "axios": "^1.19.0",
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
     "kafkajs": "^2.2.4",

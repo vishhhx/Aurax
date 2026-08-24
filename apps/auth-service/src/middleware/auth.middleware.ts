@@ -5,7 +5,7 @@ import { ApiError } from "@repo/core/rest";
 
 export const authenticate = (
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ) => {
   try {
@@ -26,16 +26,10 @@ export const authenticate = (
 
     req.user = payload;
     next();
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof ApiError) {
-      return res.status(error.statusCode).json({
-        success: false,
-        message: error.message,
-      });
+      return next(error);
     }
-    return res.status(401).json({
-      success: false,
-      message: error?.message || "Invalid or expired access token",
-    });
+    return next(new ApiError(401, "Invalid or expired access token"));
   }
 };

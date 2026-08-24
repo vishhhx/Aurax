@@ -1,4 +1,4 @@
-import { ApiReponse, asyncHandler } from "@repo/core/rest";
+import { ApiReponse, asyncHandler, ApiError } from "@repo/core/rest";
 import type { Request, Response } from "express";
 import { DepositService } from "../services/db";
 import { RazorpayService } from "../services/razorpay";
@@ -7,9 +7,7 @@ export const depositeinitialize = asyncHandler(
     const { amount } = req.body;
     const userId = req.user?.userId;
     if (!userId) {
-      return res
-        .status(401)
-        .json(new ApiReponse(false, null, "User not authenticated", 401));
+      throw new ApiError(401, "User not authenticated");
     }
     const usdcPriceInInr = 95.72;
     const usdcAmount = amount / usdcPriceInInr;
@@ -52,9 +50,7 @@ export const verifyPayments = asyncHandler(
       signature: razorpay_signature,
     });
     if (!isValid) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, null, "Invalid payment signature", 400));
+      throw new ApiError(400, "Invalid payment signature");
     }
     await depositeService.conformPayment({
       orderId: razorpay_order_id,
@@ -82,9 +78,7 @@ export const RazorpayWebhook = asyncHandler(
     const signature = req.headers["x-razorpay-signature"] as string;
 
     if (!signature) {
-      return res
-        .status(401)
-        .json(new ApiReponse(false, null, "Missing webhook signature", 401));
+      throw new ApiError(401, "Missing webhook signature");
     }
 
     const rawBody = req.body.toString("utf8");
@@ -93,9 +87,7 @@ export const RazorpayWebhook = asyncHandler(
 
     const isValid = razorpayService.verifyWebhookSignature(rawBody, signature);
     if (!isValid) {
-      return res
-        .status(401)
-        .json(new ApiReponse(false, null, "Invalid webhook signature", 401));
+      throw new ApiError(401, "Invalid webhook signature");
     }
     const body = JSON.parse(rawBody);
 
