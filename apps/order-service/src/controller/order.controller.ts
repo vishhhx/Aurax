@@ -4,7 +4,7 @@ import type { OrderInput } from "../schemas/order.schema";
 import { AssetService } from "../services/db";
 
 import axios from "axios";
-import { walletClient } from "../grpc/wallet.client";
+import { walletClient } from "../grpc/client";
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   //   const { userId } = req?.user;
 

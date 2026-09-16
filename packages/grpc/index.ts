@@ -1,11 +1,32 @@
-import * as grpc from "@grpc/grpc-js";
-import * as protoLoader from "@grpc/proto-loader";
-import path from "node:path";
+export { Contracts } from "./src/client";
+export { getGrpcClient } from "./src/client";
 
-export function loadWalletProto(): grpc.GrpcObject {
-  const protoPath = path.join(__dirname, "proto", "wallet.proto");
+export { loadProto } from "./src/util";
+export { startGrpcServer,getGrpcServer } from "./src/server";
 
-  const packageDefinition = protoLoader.loadSync(protoPath);
+export type {
+  ReserveBalanceRequest,
+  ReserveBalanceRequest__Output,
+} from "./generated/wallet/ReserveBalanceRequest";
 
-  return grpc.loadPackageDefinition(packageDefinition);
-}
+export type {
+  ReserveBalanceResponse,
+  ReserveBalanceResponse__Output,
+} from "./generated/wallet/ReserveBalanceResponse";
+
+export type {
+  ReleaseBalanceRequest,
+  ReleaseBalanceRequest__Output,
+} from "./generated/wallet/ReleaseBalanceRequest";
+
+export type {
+  ReleaseBalanceResponse,
+  ReleaseBalanceResponse__Output,
+} from "./generated/wallet/ReleaseBalanceResponse";
+
+export type {
+  WalletServiceClient,
+  WalletServiceDefinition,
+} from "./generated/wallet/WalletService";
+
+export type { ProtoGrpcType } from "./generated/wallet";

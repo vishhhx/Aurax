@@ -1,12 +1,16 @@
 {
   "name": "@repo/grpc",
-  "module": "index.ts",
-  "type": "module",
+  "version": "0.0.0",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "type": "module",
+  "module": "index.ts",
+  "scripts": {
+    "generate": "proto-loader-gen-types --longs=String --enums=String --defaults --oneofs --grpcLib=@grpc/grpc-js --outDir=generated proto/*.proto",
+    "typecheck": "tsc --noEmit"
   },
-  "peerDependencies": {
+  "devDependencies": {
+    "@types/bun": "latest",
+    "proto-loader-gen-types": "^1.x",
     "typescript": "^5"
   },
   "dependencies": {
