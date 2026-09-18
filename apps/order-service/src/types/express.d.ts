@@ -14,4 +14,8 @@ declare global {
   }
 }
 
+export type AuthenticatedRequest = Express.Request & {
+  user: Express.User;
+};
+
 export {};

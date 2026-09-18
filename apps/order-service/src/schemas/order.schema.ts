@@ -15,8 +15,6 @@ export const orderSchema = z
     postOnly: z.boolean().default(false),
 
     timeInForce: z.enum(["GTC", "IOC", "FOK"]).optional(),
-
-    clientOrderId: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.orderType === "LIMIT" && !data.price) {

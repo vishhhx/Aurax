@@ -9,30 +9,29 @@ datasource db {
 
 model Asset {
   assetId String @id @default(cuid())
-
-  symbol   String @unique
+  symbol String @unique
   imageUrl String
-  name     String
+  name String
   decimals Int
+  network String?
 
-  network String? 
-
-  depositEnabled    Boolean @default(true)
+  depositEnabled Boolean @default(true)
   withdrawalEnabled Boolean @default(true)
 
-  minDeposit    Decimal @db.Decimal(30, 8)
+  minDeposit Decimal @db.Decimal(30, 8)
   minWithdrawal Decimal @db.Decimal(30, 8)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   deposits Deposit[]
-
-  wallets            Wallet[]
+  wallets Wallet[]
   walletTransactions WalletTransaction[]
-  Ledger Ledger[]
-    baseMarkets  Market[] @relation("BaseAsset")
+  ledgers Ledger[]
+
+  baseMarkets Market[] @relation("BaseAsset")
   quoteMarkets Market[] @relation("QuoteAsset")
+  balanceReservations BalanceReservation[]
 }
 
 model Deposit {
@@ -41,35 +40,39 @@ model Deposit {
   userId String
 
   assetId String
-  asset   Asset @relation(fields: [assetId], references: [assetId])
+  asset Asset @relation(fields: [assetId], references: [assetId])
 
   amount Decimal @db.Decimal(30, 8)
-  orderId   String? @unique
+
+  orderId String? @unique
   paymentId String? @unique
-  // Blockchain (Phase 2)
-  txHash        String? @unique
-  network       String?
+
+  txHash String? @unique
+  network String?
   confirmations Int @default(0)
 
   status DepositStatus @default(PENDING)
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
   completedAt DateTime?
 }
 
 model Wallet {
   walletId String @id @default(cuid())
+
   userId String
+
   assetId String
-  asset   Asset @relation(fields: [assetId], references: [assetId])
+  asset Asset @relation(fields: [assetId], references: [assetId])
+
   availableBalance Decimal @default(0) @db.Decimal(30, 8)
   lockedBalance Decimal @default(0) @db.Decimal(30, 8)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@unique([userId, assetId])
 }
-
-
 
 model WalletTransaction {
   walletTransactionId String @id @default(cuid())
@@ -82,14 +85,16 @@ model WalletTransaction {
   amount Decimal @db.Decimal(30, 8)
 
   type WalletTransactionType
-
   status WalletTransactionStatus
 
   referenceId String?
 
   createdAt DateTime @default(now())
-}
 
+  @@index([userId])
+  @@index([assetId])
+  @@index([referenceId])
+}
 
 model Ledger {
   ledgerId String @id @default(cuid())
@@ -100,32 +105,30 @@ model Ledger {
   asset Asset @relation(fields: [assetId], references: [assetId])
 
   entryType LedgerEntryType
-
   amount Decimal @db.Decimal(30, 8)
 
   referenceId String
-
   referenceType LedgerReferenceType
 
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([assetId])
+  @@index([referenceId])
 }
 
-
-
-
-
-
-model Market{
+model Market {
   marketId String @id @default(cuid())
-  symbol String @unique 
+
+  symbol String @unique
 
   baseAssetId String
   quoteAssetId String
 
-  baseAsset  Asset @relation("BaseAsset", fields: [baseAssetId], references: [assetId])
+  baseAsset Asset @relation("BaseAsset", fields: [baseAssetId], references: [assetId])
   quoteAsset Asset @relation("QuoteAsset", fields: [quoteAssetId], references: [assetId])
 
- status MarketStatus @default(TRADING)
+  status MarketStatus @default(TRADING)
 
   tickSize Decimal @db.Decimal(30, 18)
   stepSize Decimal @db.Decimal(30, 18)
@@ -149,11 +152,111 @@ model Market{
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  orders Order[]
+  trades Trade[]
+
   @@index([baseAssetId])
   @@index([quoteAssetId])
-  
 }
 
+model Order {
+  orderId String @id @default(cuid())
+
+  userId String
+
+  marketId String
+  market Market @relation(fields: [marketId], references: [marketId])
+
+  symbol String
+
+  side OrderSide
+  orderType OrderType
+
+  quantity Decimal @db.Decimal(30, 18)
+  price Decimal? @db.Decimal(30, 18)
+
+  executedQuantity Decimal @default(0) @db.Decimal(30, 18)
+  remainingQuantity Decimal @db.Decimal(30, 18)
+
+  averagePrice Decimal? @db.Decimal(30, 18)
+
+  timeInForce TimeInForce @default(GTC)
+
+  status OrderStatus @default(PENDING)
+
+
+  referenceId String @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trades Trade[]
+
+
+  @@index([userId])
+  @@index([marketId])
+  @@index([symbol])
+  @@index([userId, status])
+  @@index([marketId, status])
+}
+
+model Trade {
+  tradeId String @id @default(cuid())
+
+  orderId String
+  order Order @relation(fields: [orderId], references: [orderId])
+
+  userId String
+
+  marketId String
+  market Market @relation(fields: [marketId], references: [marketId])
+
+  symbol String
+
+  side OrderSide
+
+  price Decimal @db.Decimal(30, 18)
+  quantity Decimal @db.Decimal(30, 18)
+
+  quoteAmount Decimal @db.Decimal(30, 18)
+
+  fee Decimal @default(0) @db.Decimal(30, 18)
+  feeAsset String
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([marketId])
+  @@index([symbol])
+}
+
+
+
+model BalanceReservation {
+  id              String            @id @default(uuid())
+  referenceId     String            @unique
+  userId          String
+  assetId         String
+  amount          Decimal           @db.Decimal(30, 8)
+  remainingAmount Decimal           @db.Decimal(30, 8)
+  status          ReservationStatus @default(ACTIVE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  asset Asset @relation(fields: [assetId], references: [assetId])
+
+  @@index([userId])
+  @@index([userId, assetId])
+}
+
+
+enum ReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+  CANCELLED
+}
 
 
 enum MarketStatus {
@@ -164,9 +267,31 @@ enum MarketStatus {
   POST_ONLY
 }
 
+enum OrderSide {
+  BUY
+  SELL
+}
 
+enum OrderType {
+  MARKET
+  LIMIT
+}
 
+enum TimeInForce {
+  GTC
+  IOC
+  FOK
+}
 
+enum OrderStatus {
+  PENDING
+  OPEN
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  REJECTED
+  EXPIRED
+}
 
 enum DepositStatus {
   PENDING
@@ -174,7 +299,6 @@ enum DepositStatus {
   COMPLETED
   FAILED
 }
-
 
 enum LedgerEntryType {
   CREDIT
@@ -188,7 +312,6 @@ enum LedgerReferenceType {
   FEE
   ADJUSTMENT
 }
-
 
 enum WalletTransactionType {
   DEPOSIT

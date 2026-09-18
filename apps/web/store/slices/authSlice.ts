@@ -8,7 +8,7 @@ import type { RootState } from "../index"
 import type { AuthState, UserDetails } from "../types"
 import { api } from "@/lib/axios"
 
-const API_AUTH = "/api/v1/auth/auth"
+const API_AUTH = "/api/v1/auth"
 const API_SESSIONS = "/api/v1/auth/sessions"
 
 type AuthError = {

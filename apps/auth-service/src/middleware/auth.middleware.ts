@@ -19,10 +19,7 @@ export const authenticate = (
       throw new ApiError(401, "Access token required");
     }
 
-    const payload = verifyToken(
-      token,
-      ENV.JWT_ACCESS_SECRET!,
-    ) as UserPayload;
+    const payload = verifyToken(token, ENV.JWT_ACCESS_SECRET!) as UserPayload;
 
     req.user = payload;
     next();
@@ -30,6 +27,7 @@ export const authenticate = (
     if (error instanceof ApiError) {
       return next(error);
     }
+    console.error("Authentication middleware error:", error);
     return next(new ApiError(401, "Invalid or expired access token"));
   }
 };

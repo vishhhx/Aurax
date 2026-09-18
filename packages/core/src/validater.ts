@@ -5,19 +5,17 @@ import { ApiError } from "./rest";
 export const validateRequest = (schema: z.ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      schema.parse(req.body);
+      req.body = schema.parse(req.body);
       next();
     } catch (err) {
       if (err instanceof ZodError) {
-        const errorMessages = err.issues.map((issue: any) => ({
-          message: `${issue.path.join(".")} is ${issue.message}`,
+        const errors = err.issues.map((issue) => ({
+          field: issue.path.join(".") || "body",
+          message: issue.message,
         }));
-        throw new ApiError(
-          400,
-          `Validation failed: ${JSON.stringify(errorMessages)}`,
-        );
+        return next(new ApiError(400, "Validation failed", errors));
       } else {
-        throw new ApiError(500, "Internal Server Error");
+        return next(new ApiError(500, "Internal Server Error"));
       }
     }
   };

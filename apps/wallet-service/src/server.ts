@@ -4,7 +4,7 @@ import { ENV } from "./config/env";
 import logger from "./config/logger";
 import { connectToredis } from "@repo/redis";
 import { connectToPostgres } from "@repo/pg";
-import { startGrpcServer } from "@repo/grpc";
+import { startGrpcServer } from "../src/grpc";
 import { connectKafka } from "@repo/kafka";
 const startServer = async () => {
   await connectMongoDb();
@@ -17,6 +17,7 @@ const startServer = async () => {
   logger.info("connected to kafka");
 
   await startGrpcServer();
+  await import("./grpc");
 
   const port = ENV.PORT;
   app.listen(port, () => {

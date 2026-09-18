@@ -11,6 +11,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use("/oauth2", oAuth2Router);
 app.use("/sessions", sessionRouter);
-app.use("/auth", authRouter);
+app.use(authRouter);
 
 app.use(errorMiddleware);

@@ -106,7 +106,7 @@ Retrieves user profile details with Redis string caching (`@repo/redis`).
 ## Endpoint
 
 ```text
-GET /auth/details
+GET /details
 ```
 
 ## Authentication

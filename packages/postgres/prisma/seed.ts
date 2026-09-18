@@ -2,18 +2,21 @@ import "dotenv/config";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Asset, PrismaClient } from "../generated/prisma/client";
+
 const connectionString = `${process.env.PG_DATABASE_URL}`;
+
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const seed = process.argv[2];
+  const seed = process.argv[2] ?? "all";
 
   switch (seed) {
     case "markets":
       await seedMarkets();
       break;
+
     case "assets":
       await seedAssets();
       break;
@@ -22,9 +25,10 @@ async function main() {
       await seedAssets();
       await seedMarkets();
       break;
+
     default:
       console.log(
-        "Please provide a valid seed argument: 'markets' or 'assets'",
+        "Please provide a valid seed argument: 'markets', 'assets' or 'all'",
       );
       process.exit(1);
   }
@@ -37,13 +41,15 @@ async function seedMarkets() {
     assets.map((asset: Asset) => [asset.symbol, asset.assetId]),
   );
 
-  console.log(assets);
+  const requiredAssets = ["BTC", "ETH", "SOL", "USDT", "USDC"];
 
-  const usdc = assetMap.get("USDC");
-
-  if (!usdc) {
-    throw new Error("USDC asset not found. Run asset seed first.");
+  for (const symbol of requiredAssets) {
+    if (!assetMap.get(symbol)) {
+      throw new Error(`${symbol} asset not found. Run asset seed first.`);
+    }
   }
+
+  const usdc = assetMap.get("USDC")!;
 
   await prisma.market.createMany({
     skipDuplicates: true,
@@ -52,111 +58,78 @@ async function seedMarkets() {
         symbol: "BTCUSDC",
         baseAssetId: assetMap.get("BTC")!,
         quoteAssetId: usdc,
-
         status: "TRADING",
-
         tickSize: "0.01",
         stepSize: "0.000001",
-
         minPrice: "0.01",
         maxPrice: "10000000",
-
         minQuantity: "0.000001",
         maxQuantity: "1000000",
-
         minNotional: "10",
-
         makerFee: "0.001",
         takerFee: "0.001",
-
         pricePrecision: 2,
         quantityPrecision: 6,
-
         isEnabled: true,
       },
       {
         symbol: "ETHUSDC",
         baseAssetId: assetMap.get("ETH")!,
         quoteAssetId: usdc,
-
         status: "TRADING",
-
         tickSize: "0.01",
         stepSize: "0.000001",
-
         minPrice: "0.01",
         maxPrice: "10000000",
-
         minQuantity: "0.000001",
         maxQuantity: "1000000",
-
         minNotional: "10",
-
         makerFee: "0.001",
         takerFee: "0.001",
-
         pricePrecision: 2,
         quantityPrecision: 6,
-
         isEnabled: true,
       },
       {
         symbol: "SOLUSDC",
         baseAssetId: assetMap.get("SOL")!,
         quoteAssetId: usdc,
-
         status: "TRADING",
-
         tickSize: "0.001",
         stepSize: "0.001",
-
         minPrice: "0.001",
         maxPrice: "100000",
-
         minQuantity: "0.001",
         maxQuantity: "1000000",
-
         minNotional: "10",
-
         makerFee: "0.001",
         takerFee: "0.001",
-
         pricePrecision: 3,
         quantityPrecision: 3,
-
         isEnabled: true,
       },
       {
         symbol: "USDTUSDC",
         baseAssetId: assetMap.get("USDT")!,
         quoteAssetId: usdc,
-
         status: "TRADING",
-
         tickSize: "0.0001",
         stepSize: "0.000001",
-
         minPrice: "0.90",
         maxPrice: "1.10",
-
         minQuantity: "1",
-
         maxQuantity: "1000000",
-
         minNotional: "10",
-
         makerFee: "0.0005",
         takerFee: "0.0005",
-
         pricePrecision: 4,
         quantityPrecision: 6,
-
         isEnabled: true,
       },
     ],
   });
 
-  console.log("✅ Markets seeded successfully.");
+  console.log("Markets seeded successfully.");
 }
 
 async function seedAssets() {
@@ -205,10 +178,15 @@ async function seedAssets() {
       },
     ],
   });
+
+  console.log("Assets seeded successfully.");
 }
 
 main()
-  .catch((error) => console.log(error))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
   .finally(async () => {
     await prisma.$disconnect();
   });

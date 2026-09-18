@@ -8,7 +8,7 @@ export const kafka = new Kafka({
 export const TOPICS = {
   DEPOSIT_EVENTS: "deposit.events",
   WITHDRAWAL_EVENTS: "withdrawal.events",
-  ORDER_CREATED: "order.created",
+  ORDER_EVENTS: "order.events",
   TRADE_EXECUTED: "trade.executed",
   NOTIFICATION_EVENTS: "notification.events",
 };

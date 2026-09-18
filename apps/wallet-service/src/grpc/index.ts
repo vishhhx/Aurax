@@ -4,10 +4,12 @@ import type { ProtoGrpcType as WalletProtoGrpcType } from "@repo/grpc";
 
 import { ReserveBalance } from "./handlers/wallet";
 
-const proto = await loadProto<WalletProtoGrpcType>("wallet");
+export async function startGrpcServer() {
+  const proto = await loadProto<WalletProtoGrpcType>("wallet");
 
-const grpcServer = getGrpcServer();
+  const grpcServer = await getGrpcServer();
 
-grpcServer.addService(proto.wallet.WalletService.service, {
-  ReserveBalance,
-});
+  grpcServer.addService(proto.wallet.WalletService.service, {
+    ReserveBalance,
+  });
+}

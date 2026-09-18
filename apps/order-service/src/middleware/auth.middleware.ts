@@ -27,7 +27,8 @@ export const authenticate = (
     if (error instanceof ApiError) {
       return next(error);
     }
+
+    console.error("Authentication middleware error:", error);
     return next(new ApiError(401, "Invalid or expired access token"));
   }
 };
-

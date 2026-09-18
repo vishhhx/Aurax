@@ -2,7 +2,7 @@ export { Contracts } from "./src/client";
 export { getGrpcClient } from "./src/client";
 
 export { loadProto } from "./src/util";
-export { startGrpcServer,getGrpcServer } from "./src/server";
+export { getGrpcServer } from "./src/server";
 
 export type {
   ReserveBalanceRequest,

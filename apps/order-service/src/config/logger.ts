@@ -1,5 +1,5 @@
 import { createLogger } from "@repo/logger";
 
-const logger = createLogger("wallet-service");
+const logger = createLogger("Order-service");
 
 export default logger;

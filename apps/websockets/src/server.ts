@@ -65,8 +65,8 @@ io.on("connection", (socket) => {
   });
 });
 
-function StartConsumingKafkaMessages() {
-  consumeDeposit();
+async function StartConsumingKafkaMessages() {
+  await consumeDeposit();
 }
 
 httpServer.listen(ENV.PORT, () => {

@@ -1,9 +1,10 @@
 import * as grpc from "@grpc/grpc-js";
-let GrpcServer: grpc.Server;
-export const startGrpcServer = (): Promise<void> => {
-  GrpcServer = new grpc.Server();
+
+export const getGrpcServer = (): Promise<grpc.Server> => {
+  const grpcServer = new grpc.Server();
+
   return new Promise((resolve, reject) => {
-    GrpcServer.bindAsync(
+    grpcServer.bindAsync(
       process.env.WALLET_GRPC_URL!,
       grpc.ServerCredentials.createInsecure(),
       (error) => {
@@ -14,17 +15,8 @@ export const startGrpcServer = (): Promise<void> => {
 
         console.log(`gRPC server running on ${process.env.WALLET_GRPC_URL}`);
 
-        resolve();
+        resolve(grpcServer);
       },
     );
   });
-};
-
-export const getGrpcServer = (): grpc.Server => {
-  if (!GrpcServer) {
-    throw new Error(
-      "gRPC server not started yet. Call startGrpcServer() first.",
-    );
-  }
-  return GrpcServer;
 };

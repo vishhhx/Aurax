@@ -10,4 +10,5 @@ export const ENV = {
   REDIS_URL: process.env.REDIS_URL!,
   WALLET_SERVICE_URL: process.env.WALLET_SERVICE_URL!,
   JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET!,
+  ORDER_SERVICE_URL: process.env.ORDER_SERVICE_URL!,
 };

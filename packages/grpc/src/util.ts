@@ -6,7 +6,6 @@ export async function loadProto<T>(contract: string): Promise<T> {
   const protoPath = path.join(__dirname, "..", "proto", `${contract}.proto`);
 
   const packageDefinition = await protoLoader.load(protoPath, {
-    keepCase: true,
     longs: String,
     enums: String,
     defaults: true,
