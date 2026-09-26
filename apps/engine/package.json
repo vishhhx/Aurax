@@ -12,7 +12,8 @@
   "dependencies": {
     "@repo/pg": "*",
     "@repo/logger": "*",
-    "@repo/redis": "*"
+    "@repo/redis": "*",
+    "@repo/kafka": "*"
   },
   "peerDependencies": {
     "typescript": "^5"

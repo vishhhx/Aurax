@@ -70,6 +70,7 @@
     "apps/engine": {
       "name": "@repo/engine",
       "dependencies": {
+        "@repo/kafka": "*",
         "@repo/logger": "*",
         "@repo/pg": "*",
         "@repo/redis": "*",
