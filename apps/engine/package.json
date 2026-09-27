@@ -10,10 +10,11 @@
     "dev": "bun src/persistence/recovery.ts"
   },
   "dependencies": {
-    "@repo/pg": "*",
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@repo/kafka": "*",
     "@repo/logger": "*",
-    "@repo/redis": "*",
-    "@repo/kafka": "*"
+    "@repo/pg": "*",
+    "@repo/redis": "*"
   },
   "peerDependencies": {
     "typescript": "^5"

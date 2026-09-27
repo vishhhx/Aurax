@@ -181,6 +181,7 @@ model Order {
   averagePrice Decimal? @db.Decimal(30, 18)
 
   timeInForce TimeInForce @default(GTC)
+  postOnly Boolean @default(false)
 
   status OrderStatus @default(PENDING)
 
