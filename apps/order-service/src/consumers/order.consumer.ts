@@ -1,4 +1,55 @@
+import { consumer as Consumer, TOPICS } from "@repo/kafka";
+import { handleOrderCompleted } from "./handlers/order.handlers";
+import { handleTradeExecuted } from "./handlers/trade.handlers";
 import type { OrderSide, OrderStatus } from "@repo/pg";
+const topic = TOPICS.ORDER_EVENTS;
+export const consumeOrder = async (markets: string[]) => {
+  const consumer = Consumer(topic);
+
+  await consumer.subscribe({
+    topic,
+    fromBeginning: true,
+  });
+
+  await consumer.run({
+    eachMessage: async ({ message, topic, partition }) => {
+      if (!message.value) return;
+
+      try {
+        const event = JSON.parse(message.value.toString());
+
+        if (!markets.includes(event.symbol)) {
+          return;
+        }
+
+        switch (event.event) {
+          case "trade.executed":
+            await handleTradeExecuted(event);
+            break;
+
+          case "order.completed":
+            await handleOrderCompleted(event);
+            break;
+
+          // case "order.cancelled":
+          //   await handleOrderCancelled(event);
+          //   break;
+
+          // case "order.rejected":
+          //   await handleOrderRejected(event);
+          //   break;
+
+          default:
+            break;
+        }
+      } catch (error) {
+        console.error("Failed to process order event:", error);
+
+        throw error;
+      }
+    },
+  });
+};
 
 export interface OrderCompletedEvent {
   event: "order.completed";
@@ -36,13 +87,13 @@ export interface TradeExecutedEvent {
   tradeId: string;
 
   symbol: string;
+
   marketId: string;
 
   maker: {
     orderId: string;
     userId: string;
     status: OrderStatus;
-
     side: OrderSide;
   };
 

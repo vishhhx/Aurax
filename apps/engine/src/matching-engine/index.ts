@@ -107,7 +107,7 @@ class MatchingEngine {
 
       await this.publishOrderBook(orderBook);
 
-      await this.publishStatus(engineOrder);
+      // await this.publishStatus(engineOrder);
     }
 
     await this.handleSnapshot(orderBook, meta);
@@ -220,15 +220,20 @@ class MatchingEngine {
       tradeId,
 
       symbol: taker.symbol,
+      marketId: orderBook.market,
 
       maker: {
         orderId: maker.id,
         userId: maker.userId,
+        status: this.getStatus(maker),
+        side: maker.side,
       },
 
       taker: {
         orderId: taker.id,
         userId: taker.userId,
+        status: this.getStatus(taker),
+        side: taker.side,
       },
 
       price: price.toString(),
@@ -238,9 +243,9 @@ class MatchingEngine {
       timestamp,
     });
 
-    await this.publishStatus(maker);
+    // await this.publishStatus(maker);
 
-    await this.publishStatus(taker);
+    // await this.publishStatus(taker);
 
     await this.publishOrderBook(orderBook);
   }
@@ -309,31 +314,31 @@ class MatchingEngine {
     return OrderStatus.PENDING;
   }
 
-  private async publishStatus(order: Order): Promise<void> {
-    const status = this.getStatus(order);
+  // private async publishStatus(order: Order): Promise<void> {
+  //   const status = this.getStatus(order);
 
-    await producerRouter({
-      event:
-        status === OrderStatus.FILLED || status === OrderStatus.PARTIALLY_FILLED
-          ? "order.completed"
-          : "order.cancelled",
+  //   await producerRouter({
+  //     event:
+  //       status === OrderStatus.FILLED || status === OrderStatus.PARTIALLY_FILLED
+  //         ? "order.completed"
+  //         : "order.cancelled",
 
-      userId: order.userId,
+  //     userId: order.userId,
 
-      orderId: order.id,
+  //     orderId: order.id,
 
-      symbol: order.symbol,
+  //     symbol: order.symbol,
 
-      ...(status === OrderStatus.CANCELLED
-        ? {
-            reason: "REMAINING_QUANTITY",
-          }
-        : {
-            status:
-              status === OrderStatus.FILLED ? "FILLED" : "PARTIALLY_FILLED",
-          }),
-    } as any);
-  }
+  //     ...(status === OrderStatus.CANCELLED
+  //       ? {
+  //           reason: "REMAINING_QUANTITY",
+  //         }
+  //       : {
+  //           status:
+  //             status === OrderStatus.FILLED ? "FILLED" : "PARTIALLY_FILLED",
+  //         }),
+  //   } as any);
+  // }
 
   private async reject(order: Order, reason: string): Promise<void> {
     await producerRouter({

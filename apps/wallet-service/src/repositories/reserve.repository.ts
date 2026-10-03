@@ -12,7 +12,12 @@ class Reserve {
     referenceId: string;
     userId: string;
   }): Promise<BalanceReservation> {
-    console.log("Reserving balance:", { assetSymbol, amount, referenceId, userId });
+    console.log("Reserving balance:", {
+      assetSymbol,
+      amount,
+      referenceId,
+      userId,
+    });
     return await prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.findUnique({
         where: {
