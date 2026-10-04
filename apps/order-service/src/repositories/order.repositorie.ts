@@ -69,6 +69,103 @@ class OrderRepository {
       },
     });
   }
+  async closeOrderAndReleaseReservation({
+    userId,
+    orderId,
+    symbol,
+    status,
+  }: {
+    userId: string;
+    orderId: string;
+    symbol: string;
+    status: "CANCELLED" | "REJECTED";
+  }) {
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const order = await tx.order.findFirst({
+        where: {
+          orderId,
+          userId,
+          symbol,
+          status: {
+            in: [
+              OrderStatus.PENDING,
+              OrderStatus.OPEN,
+              OrderStatus.PARTIALLY_FILLED,
+            ],
+          },
+        },
+        select: {
+          orderId: true,
+          referenceId: true,
+          status: true,
+        },
+      });
+
+      if (!order) {
+        throw new Error("Order cannot be closed");
+      }
+
+      await tx.order.update({
+        where: {
+          orderId: order.orderId,
+        },
+        data: {
+          status,
+        },
+      });
+
+      const reservation = await tx.balanceReservation.findUnique({
+        where: {
+          referenceId: order.referenceId,
+        },
+        select: {
+          assetId: true,
+          remainingAmount: true,
+          status: true,
+        },
+      });
+
+      if (!reservation) {
+        throw new Error("Balance reservation not found");
+      }
+
+      await tx.balanceReservation.update({
+        where: {
+          referenceId: order.referenceId,
+        },
+        data: {
+          status: ReservationStatus.CANCELLED,
+          remainingAmount: 0,
+        },
+      });
+
+      if (reservation.remainingAmount.gt(0)) {
+        await tx.wallet.update({
+          where: {
+            userId_assetId: {
+              userId,
+              assetId: reservation.assetId,
+            },
+          },
+          data: {
+            lockedBalance: {
+              decrement: reservation.remainingAmount,
+            },
+            availableBalance: {
+              increment: reservation.remainingAmount,
+            },
+          },
+        });
+      }
+
+      return {
+        orderId: order.orderId,
+        status,
+        releasedAmount: reservation.remainingAmount.toString(),
+        assetId: reservation.assetId,
+      };
+    });
+  }
 
   async executeTrade(trade: TradeExecutedEvent) {
     return prisma.$transaction(async (tx: Prisma.TransactionClient) => {

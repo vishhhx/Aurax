@@ -1,5 +1,8 @@
 import { consumer as Consumer, TOPICS } from "@repo/kafka";
-import { handleOrderCompleted } from "./handlers/order.handlers";
+import {
+  handleOrderCancelled,
+  handleRejectedOrder,
+} from "./handlers/order.handlers";
 import { handleTradeExecuted } from "./handlers/trade.handlers";
 import type { OrderSide, OrderStatus } from "@repo/pg";
 const topic = TOPICS.ORDER_EVENTS;
@@ -12,32 +15,25 @@ export const consumeOrder = async (markets: string[]) => {
   });
 
   await consumer.run({
-    eachMessage: async ({ message, topic, partition }) => {
+    eachMessage: async ({ message }) => {
       if (!message.value) return;
-
       try {
         const event = JSON.parse(message.value.toString());
-
         if (!markets.includes(event.symbol)) {
           return;
         }
-
         switch (event.event) {
           case "trade.executed":
             await handleTradeExecuted(event);
             break;
 
-          case "order.completed":
-            await handleOrderCompleted(event);
+          case "order.cancelled":
+            await handleOrderCancelled(event);
             break;
 
-          // case "order.cancelled":
-          //   await handleOrderCancelled(event);
-          //   break;
-
-          // case "order.rejected":
-          //   await handleOrderRejected(event);
-          //   break;
+          case "order.rejected":
+            await handleRejectedOrder(event);
+            break;
 
           default:
             break;
