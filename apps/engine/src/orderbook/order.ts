@@ -1,5 +1,10 @@
 import type { OrderSide, OrderType, TimeInForce } from "@repo/pg";
-import type { meta } from "../consumers/order.consumer";
+
+export interface KafkaPosition {
+  topic: string;
+  partition: number;
+  offset: string;
+}
 
 export interface Fill {
   tradeId: string;
@@ -47,22 +52,23 @@ export interface OrderSnapshot {
   userId: string;
   symbol: string;
 
-  side: "BUY" | "SELL";
-  type: "LIMIT" | "MARKET";
+  side: OrderSide;
+  type: OrderType;
+  timeInForce: TimeInForce;
 
-  price: string;
-  quantity: string;
-  remainingQuantity: string;
+  price: number;
+  quantity: number;
 
-  filledQuantity: string;
-  executedQuantity: string;
-
-  sequenceNumber: string;
+  filledQuantity: number;
+  remainingQuantity: number;
+  executedQuantity: number;
 
   postOnly: boolean;
-  timeInForce: "GTC" | "IOC" | "FOK";
 
-  kafka: meta;
+  timestamp: number;
+  sequenceNumber: number;
+
+  fills: Fill[];
 }
 
 export interface OrderBookSnapshot {
@@ -70,7 +76,9 @@ export interface OrderBookSnapshot {
 
   symbol: string;
 
-  sequenceNumber: string;
+  sequenceNumber: number;
+
+  kafka: KafkaPosition;
 
   orders: OrderSnapshot[];
 }

@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { ENV } from "../config/env";
+
 import type { OrderBookSnapshot } from "../orderbook/order";
 
 const s3Client = new S3Client({
@@ -18,57 +19,53 @@ const s3Client = new S3Client({
 });
 
 class S3Service {
-  private client: S3Client;
-
-  constructor(client: S3Client) {
-    this.client = client;
-  }
+  constructor(private readonly client: S3Client) {}
 
   async uploadFile(snapshot: OrderBookSnapshot): Promise<void> {
     const timestamp = new Date().toISOString();
 
     const key = `snapshots/${snapshot.symbol}/${timestamp}.json`;
 
-    const command = new PutObjectCommand({
-      Bucket: ENV.S3_BUCKET_NAME,
-      Key: key,
-      Body: JSON.stringify(snapshot),
-      ContentType: "application/json",
-    });
-
-    await this.client.send(command);
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: ENV.S3_BUCKET_NAME,
+        Key: key,
+        Body: JSON.stringify(snapshot),
+        ContentType: "application/json",
+      }),
+    );
   }
 
   async getRecentSnapshot(symbol: string): Promise<OrderBookSnapshot | null> {
-    const command = new ListObjectsV2Command({
-      Bucket: ENV.S3_BUCKET_NAME,
-      Prefix: `snapshots/${symbol}/`,
-    });
-
-    const response = await this.client.send(command);
+    const response = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: ENV.S3_BUCKET_NAME,
+        Prefix: `snapshots/${symbol}/`,
+      }),
+    );
 
     if (!response.Contents || response.Contents.length === 0) {
       return null;
     }
 
-    const latestObject = response.Contents.filter((object) => object.Key).sort(
+    const latest = response.Contents.filter((object) => object.Key).sort(
       (a, b) =>
         (b.LastModified?.getTime() ?? 0) - (a.LastModified?.getTime() ?? 0),
-    )[0]; //Todo:optimization:we are bringing all ids to get the latest One
+    )[0];
 
-    if (!latestObject?.Key) {
+    if (!latest?.Key) {
       return null;
     }
 
-    const getCommand = new GetObjectCommand({
-      Bucket: ENV.S3_BUCKET_NAME,
-      Key: latestObject.Key,
-    });
-
-    const object = await this.client.send(getCommand);
+    const object = await this.client.send(
+      new GetObjectCommand({
+        Bucket: ENV.S3_BUCKET_NAME,
+        Key: latest.Key,
+      }),
+    );
 
     if (!object.Body) {
-      throw new Error(`Snapshot body is empty: ${latestObject.Key}`);
+      throw new Error(`Snapshot body missing: ${latest.Key}`);
     }
 
     const body = await object.Body.transformToString();

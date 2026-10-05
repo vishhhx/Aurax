@@ -209,6 +209,12 @@ export class OrderBook {
     }
   }
 
+  public restoreOrders(orders: Order[]): void {
+    for (const order of orders) {
+      this.addOrder(order);
+    }
+  }
+
   public getAllOrders(): Order[] {
     return [...this.getAllBids(), ...this.getAllAsks()];
   }

@@ -1,19 +1,27 @@
 import { prisma, type Market, OrderStatus } from "@repo/pg";
 
-import type { Fill, Order, OrderBookSnapshot } from "../orderbook/order";
+import type {
+  Fill,
+  KafkaPosition,
+  Order,
+  OrderBookSnapshot,
+} from "../orderbook/order";
 
 import { OrderBook, type PriceLevel } from "../orderbook/orderbook";
 import { producerRouter } from "../producers/order";
 import type { meta } from "../consumers/order.consumer";
 import { s3Service } from "../utils/s3";
-
+export enum EngineMode {
+  RECOVERY = "RECOVERY",
+  LIVE = "LIVE",
+}
 class MatchingEngine {
   private markets: Market[] = [];
 
   private orderbooks: Map<string, OrderBook> = new Map();
 
   private sequenceNumber = 0;
-
+  private mode: EngineMode = EngineMode.LIVE;
   constructor(private readonly marketsSymbols: string[]) {}
 
   protected async loadMarkets(): Promise<void> {
@@ -400,42 +408,57 @@ class MatchingEngine {
     });
   }
 
-  public getSnapshot(orderBook: OrderBook, meta: meta): OrderBookSnapshot {
-    const orders = orderBook.getAllOrders();
-
+  public getSnapshot(
+    orderBook: OrderBook,
+    kafka: KafkaPosition,
+  ): OrderBookSnapshot {
     return {
       version: 1,
+
       symbol: orderBook.market,
 
-      sequenceNumber: this.sequenceNumber.toString(),
+      sequenceNumber: this.sequenceNumber,
 
-      orders: orders.map((order) => ({
+      kafka,
+
+      orders: orderBook.getAllOrders().map((order) => ({
         id: order.id,
         userId: order.userId,
         symbol: order.symbol,
 
         side: order.side,
         type: order.type,
+        timeInForce: order.timeInForce,
 
-        price: order.price.toString(),
-        quantity: order.quantity.toString(),
-        remainingQuantity: order.remainingQuantity.toString(),
+        price: order.price,
+        quantity: order.quantity,
 
-        filledQuantity: order.filledQuantity.toString(),
-        executedQuantity: order.executedQuantity.toString(),
-
-        sequenceNumber: order.sequenceNumber.toString(),
+        filledQuantity: order.filledQuantity,
+        remainingQuantity: order.remainingQuantity,
+        executedQuantity: order.executedQuantity,
 
         postOnly: order.postOnly,
-        timeInForce: order.timeInForce,
-        kafka: {
-          topic: meta.topic,
-          partition: meta.partition,
-          offset: meta.offset,
-          timestamp: meta.timestamp,
-        },
+
+        timestamp: order.timestamp,
+        sequenceNumber: order.sequenceNumber,
+
+        fills: order.fills,
       })),
     };
+  }
+
+
+
+
+
+  
+
+  public setMode(mode: EngineMode): void {
+    this.mode = mode;
+  }
+
+  public getMode(): EngineMode {
+    return this.mode;
   }
 }
 
