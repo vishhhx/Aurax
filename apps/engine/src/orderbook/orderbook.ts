@@ -210,6 +210,9 @@ export class OrderBook {
   }
 
   public restoreOrders(orders: Order[]): void {
+    this.bids.clear();
+    this.asks.clear();
+
     for (const order of orders) {
       this.addOrder(order);
     }

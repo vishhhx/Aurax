@@ -15,7 +15,7 @@ export enum EngineMode {
   RECOVERY = "RECOVERY",
   LIVE = "LIVE",
 }
-class MatchingEngine {
+export class MatchingEngine {
   private markets: Market[] = [];
 
   private orderbooks: Map<string, OrderBook> = new Map();
@@ -24,7 +24,7 @@ class MatchingEngine {
   private mode: EngineMode = EngineMode.LIVE;
   constructor(private readonly marketsSymbols: string[]) {}
 
-  protected async loadMarkets(): Promise<void> {
+  public async load(): Promise<void> {
     this.markets = await prisma.market.findMany({
       where: {
         symbol: {
@@ -32,6 +32,8 @@ class MatchingEngine {
         },
       },
     });
+
+    this.generateOrderBooks();
   }
 
   public generateOrderBooks(): void {
@@ -125,6 +127,10 @@ class MatchingEngine {
     orderBook: OrderBook,
     meta: meta,
   ): Promise<void> {
+    if (this.mode === EngineMode.RECOVERY) {
+      return;
+    }
+
     orderBook.incrementEventCount();
 
     if (orderBook.getEventCount() < 100) {
@@ -222,34 +228,36 @@ class MatchingEngine {
       orderBook.updateOrder(maker);
     }
 
-    await producerRouter({
-      event: "trade.executed",
+    if (this.mode === EngineMode.LIVE) {
+      await producerRouter({
+        event: "trade.executed",
 
-      tradeId,
+        tradeId,
 
-      symbol: taker.symbol,
-      marketId: orderBook.market,
+        symbol: taker.symbol,
+        marketId: orderBook.market,
 
-      maker: {
-        orderId: maker.id,
-        userId: maker.userId,
-        status: this.getStatus(maker),
-        side: maker.side,
-      },
+        maker: {
+          orderId: maker.id,
+          userId: maker.userId,
+          status: this.getStatus(maker),
+          side: maker.side,
+        },
 
-      taker: {
-        orderId: taker.id,
-        userId: taker.userId,
-        status: this.getStatus(taker),
-        side: taker.side,
-      },
+        taker: {
+          orderId: taker.id,
+          userId: taker.userId,
+          status: this.getStatus(taker),
+          side: taker.side,
+        },
 
-      price: price.toString(),
+        price: price.toString(),
 
-      quantity: quantity.toString(),
+        quantity: quantity.toString(),
 
-      timestamp,
-    });
+        timestamp,
+      });
+    }
 
     // await this.publishStatus(maker);
 
@@ -349,6 +357,10 @@ class MatchingEngine {
   // }
 
   private async reject(order: Order, reason: string): Promise<void> {
+    if (this.mode === EngineMode.RECOVERY) {
+      return;
+    }
+
     await producerRouter({
       event: "order.rejected",
 
@@ -363,7 +375,7 @@ class MatchingEngine {
   }
 
   private async cancelRemaining(order: Order): Promise<void> {
-    if (order.remainingQuantity <= 0) {
+    if (order.remainingQuantity <= 0 || this.mode === EngineMode.RECOVERY) {
       return;
     }
 
@@ -381,6 +393,10 @@ class MatchingEngine {
   }
 
   private async publishOrderBook(orderBook: OrderBook): Promise<void> {
+    if (this.mode === EngineMode.RECOVERY) {
+      return;
+    }
+
     const bids = orderBook.getBidLevels();
 
     const asks = orderBook.getAskLevels();
@@ -447,18 +463,26 @@ class MatchingEngine {
     };
   }
 
-
-
-
-
-  
-
   public setMode(mode: EngineMode): void {
     this.mode = mode;
   }
 
   public getMode(): EngineMode {
     return this.mode;
+  }
+
+  public getOrderBook(symbol: string): OrderBook {
+    const orderBook = this.orderbooks.get(symbol);
+
+    if (!orderBook) {
+      throw new Error(`Order book not found for ${symbol}`);
+    }
+
+    return orderBook;
+  }
+
+  public restoreSequenceNumber(sequenceNumber: number): void {
+    this.sequenceNumber = sequenceNumber;
   }
 }
 
