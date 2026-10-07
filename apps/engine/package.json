@@ -7,7 +7,7 @@
     "@types/bun": "latest"
   },
   "scripts": {
-    "dev": "bun src/persistence/recovery.ts"
+    "dev": "bun src/index.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",

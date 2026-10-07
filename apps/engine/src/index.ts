@@ -16,7 +16,14 @@ if (cluster.isPrimary) {
     throw new Error("MARKETS environment variable is not defined");
   }
 
-  console.log(`Worker ${process.pid} started for markets: ${typeof markets}`);
+  const marketSymbols = markets
+    .split(",")
+    .map((symbol) => symbol.trim())
+    .filter(Boolean);
 
-  StartEngine(JSON.parse(markets));
+  console.log(
+    `Worker ${process.pid} started for markets: ${marketSymbols.join(", ")}`,
+  );
+
+  StartEngine(marketSymbols);
 }

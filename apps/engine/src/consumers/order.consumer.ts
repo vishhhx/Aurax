@@ -1,4 +1,8 @@
-import { consumer as Consumer, TOPICS } from "@repo/kafka";
+import {
+  consumer as Consumer,
+  getTopicPartitionCount,
+  TOPICS,
+} from "@repo/kafka";
 import { handleOrderCreated } from "../handlers/order.handlers";
 import { EngineMode, engine } from "../matching-engine";
 import { RecoveryManager } from "../persistence/recovery";
@@ -32,6 +36,16 @@ export const consumeOrder = async (markets: string[]) => {
       ) {
         positions.set(kafkaPosition.partition, kafkaPosition.offset);
       }
+    }
+  }
+
+  const partitionCount = await getTopicPartitionCount(topic);
+  for (const partition of positions.keys()) {
+    if (partition >= partitionCount) {
+      console.warn(
+        `[Recovery] Ignoring snapshot for unavailable ${topic} partition ${partition}; replaying from the beginning.`,
+      );
+      positions.delete(partition);
     }
   }
 

@@ -487,5 +487,8 @@ export class MatchingEngine {
 }
 
 export const engine = new MatchingEngine(
-  JSON.parse(process.env.MARKETS ?? "[]") as string[],
+  (process.env.MARKETS ?? "")
+    .split(",")
+    .map((symbol) => symbol.trim())
+    .filter(Boolean),
 );
