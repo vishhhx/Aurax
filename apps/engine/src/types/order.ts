@@ -72,13 +72,10 @@ export interface OrderSnapshot {
 }
 
 export interface OrderBookSnapshot {
-  version: 1;
-
+  version: number;
   symbol: string;
-
   sequenceNumber: number;
-
+  orderSequenceNumber: number;
   kafka: KafkaPosition;
-
   orders: OrderSnapshot[];
 }

@@ -1,8 +1,8 @@
 import { type Order as OrderCreatedEvent } from "@repo/pg";
 
 import { engine } from "../matching-engine";
-import type { meta } from "../consumers/order.consumer";
-import type { Order } from "../orderbook/order";
+import type { KafkaMessageMeta } from "../types/kafka";
+import type { Order } from "../types/order";
 
 function toEngineOrder(event: OrderCreatedEvent): Order {
   return {
@@ -26,7 +26,7 @@ function toEngineOrder(event: OrderCreatedEvent): Order {
 
 export const handleOrderCreated = async (
   event: OrderCreatedEvent,
-  meta: meta,
+  meta: KafkaMessageMeta,
 ): Promise<void> => {
   const engineOrder = toEngineOrder(event);
 

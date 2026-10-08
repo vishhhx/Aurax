@@ -14,7 +14,9 @@
     "@repo/kafka": "*",
     "@repo/logger": "*",
     "@repo/pg": "*",
-    "@repo/redis": "*"
+    "@repo/redis": "*",
+    "@grpc/grpc-js": "*",
+    "@repo/grpc": "*"
   },
   "peerDependencies": {
     "typescript": "^5"

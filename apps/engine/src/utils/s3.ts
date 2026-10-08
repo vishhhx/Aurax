@@ -7,7 +7,7 @@ import {
 
 import { ENV } from "../config/env";
 
-import type { OrderBookSnapshot } from "../orderbook/order";
+import type { OrderBookSnapshot } from "../types/order";
 
 const s3Client = new S3Client({
   region: ENV.S3_REGION,

@@ -1,4 +1,4 @@
-import { kafka } from "@repo/kafka";
+import { kafka, TOPICS } from "@repo/kafka";
 import logger from "../utils/logger";
 
 async function createTopics() {
@@ -7,11 +7,12 @@ async function createTopics() {
   try {
     await admin.createTopics({
       topics: [
-        { topic: "deposit.events" },
-        { topic: "withdrawal.events" },
-        { topic: "order.created" },
-        { topic: "trade.executed" },
-        { topic: "notification.events" },
+        { topic: TOPICS.DEPOSIT_EVENTS },
+        { topic: TOPICS.WITHDRAWAL_EVENTS },
+        { topic: TOPICS.ORDER_EVENTS },
+        { topic: TOPICS.TRADE_EXECUTED },
+        { topic: TOPICS.NOTIFICATION_EVENTS },
+        { topic: TOPICS.MARKET_EVENTS },
       ],
     });
     logger.info("Topics created successfully.");

@@ -1,10 +1,6 @@
 import type { OrderSide } from "@repo/pg";
-import type { Order } from "./order";
-
-export interface PriceLevel {
-  price: number;
-  quantity: number;
-}
+import type { Order } from "../types/order";
+import type { PriceLevel } from "../types/orderbook";
 
 export class OrderBook {
   constructor(public readonly market: string) {}
@@ -232,5 +228,21 @@ export class OrderBook {
 
   public resetEventCount(): void {
     this.eventCount = 0;
+  }
+
+  public getSnapshot() {
+    return {
+      symbol: this.market,
+
+      bids: this.getBidLevels().map((level) => ({
+        price: level.price.toString(),
+        quantity: level.quantity.toString(),
+      })),
+
+      asks: this.getAskLevels().map((level) => ({
+        price: level.price.toString(),
+        quantity: level.quantity.toString(),
+      })),
+    };
   }
 }

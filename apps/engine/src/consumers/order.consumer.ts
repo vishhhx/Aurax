@@ -3,23 +3,26 @@ import {
   getTopicPartitionCount,
   TOPICS,
 } from "@repo/kafka";
+
 import { handleOrderCreated } from "../handlers/order.handlers";
 import { EngineMode, engine } from "../matching-engine";
 import { RecoveryManager } from "../persistence/recovery";
+import type { KafkaMessageMeta } from "../types/kafka";
+import type { KafkaPosition } from "../types/order";
+
 const topic = TOPICS.ORDER_EVENTS;
 
-export interface meta {
-  topic: string;
-  partition: number;
-  offset: string;
-  timestamp: string;
-}
-export const consumeOrder = async (markets: string[]) => {
+export const consumeOrder = async (markets: string[]): Promise<void> => {
   const consumer = Consumer(topic);
   const recoveryManager = new RecoveryManager(engine);
+
   const positions = new Map<number, string>();
+  const snapshotPositions = new Map<string, KafkaPosition>();
+  const caughtUpPartitions = new Set<number>();
 
   engine.setMode(EngineMode.RECOVERY);
+
+  let missingSnapshot = false;
 
   for (const symbol of markets) {
     const kafkaPosition = await recoveryManager.recover(
@@ -27,31 +30,42 @@ export const consumeOrder = async (markets: string[]) => {
       engine.getOrderBook(symbol),
     );
 
-    if (kafkaPosition) {
-      const currentOffset = positions.get(kafkaPosition.partition);
+    if (!kafkaPosition) {
+      missingSnapshot = true;
+      continue;
+    }
 
-      if (
-        currentOffset === undefined ||
-        BigInt(kafkaPosition.offset) < BigInt(currentOffset)
-      ) {
-        positions.set(kafkaPosition.partition, kafkaPosition.offset);
-      }
+    snapshotPositions.set(symbol, kafkaPosition);
+
+    const currentOffset = positions.get(kafkaPosition.partition);
+
+    if (
+      currentOffset === undefined ||
+      BigInt(kafkaPosition.offset) < BigInt(currentOffset)
+    ) {
+      positions.set(kafkaPosition.partition, kafkaPosition.offset);
     }
   }
 
   const partitionCount = await getTopicPartitionCount(topic);
-  for (const partition of positions.keys()) {
-    if (partition >= partitionCount) {
-      console.warn(
-        `[Recovery] Ignoring snapshot for unavailable ${topic} partition ${partition}; replaying from the beginning.`,
-      );
-      positions.delete(partition);
-    }
+
+  const invalidSnapshotPartition = [...positions.keys()].some(
+    (partition) => partition >= partitionCount,
+  );
+
+  if (missingSnapshot || invalidSnapshotPartition) {
+    engine.generateOrderBooks();
+    positions.clear();
+    snapshotPositions.clear();
+
+    console.log(
+      `[Recovery] Rebuilding all markets from the beginning of ${topic}`,
+    );
   }
 
   await consumer.subscribe({
     topic,
-    fromBeginning: positions.size === 0,
+    fromBeginning: true,
   });
 
   for (const [partition, offset] of positions) {
@@ -77,10 +91,11 @@ export const consumeOrder = async (markets: string[]) => {
 
         if (!message.value) {
           resolveOffset(message.offset);
+          await heartbeat();
           continue;
         }
 
-        const meta: meta = {
+        const meta: KafkaMessageMeta = {
           topic: batch.topic,
           partition: batch.partition,
           offset: message.offset,
@@ -89,7 +104,20 @@ export const consumeOrder = async (markets: string[]) => {
 
         try {
           const event = JSON.parse(message.value.toString());
+
           if (!markets.includes(event.symbol)) {
+            resolveOffset(message.offset);
+            await heartbeat();
+            continue;
+          }
+
+          const snapshotPosition = snapshotPositions.get(event.symbol);
+
+          if (
+            snapshotPosition &&
+            snapshotPosition.partition === meta.partition &&
+            BigInt(meta.offset) <= BigInt(snapshotPosition.offset)
+          ) {
             resolveOffset(message.offset);
             await heartbeat();
             continue;
@@ -106,25 +134,29 @@ export const consumeOrder = async (markets: string[]) => {
             `Failed to process ${batch.topic}:${batch.partition}:${message.offset}`,
             error,
           );
+
           throw error;
         }
       }
 
+      const lastMessage = batch.messages[batch.messages.length - 1];
+
+      if (
+        lastMessage &&
+        BigInt(lastMessage.offset) + 1n >= BigInt(batch.highWatermark)
+      ) {
+        caughtUpPartitions.add(batch.partition);
+      }
+
       if (
         engine.getMode() === EngineMode.RECOVERY &&
-        batch.messages.length > 0
+        caughtUpPartitions.size >= partitionCount
       ) {
-        const lastMessage = batch.messages[batch.messages.length - 1];
+        engine.setMode(EngineMode.LIVE);
 
-        if (
-          lastMessage &&
-          BigInt(lastMessage.offset) + 1n >= BigInt(batch.highWatermark)
-        ) {
-          engine.setMode(EngineMode.LIVE);
-          console.log(
-            `[Recovery] ${batch.topic}:${batch.partition} caught up. LIVE mode.`,
-          );
-        }
+        console.log(
+          `[Recovery] All ${partitionCount} partitions caught up. LIVE mode.`,
+        );
       }
     },
   });

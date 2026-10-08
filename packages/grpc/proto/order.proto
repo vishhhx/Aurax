@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package order;
+
+service MatchingEngine {
+  rpc GetOrderBook(GetOrderBookRequest)
+      returns (GetOrderBookResponse);
+
+  rpc GetEngineStatus(GetEngineStatusRequest)
+      returns (GetEngineStatusResponse);
+}
+
+message GetEngineStatusRequest {}
+
+message GetEngineStatusResponse {
+  bool is_ready = 1;
+
+  string status = 2;
+
+  string error_code = 3;
+}
+
+message GetOrderBookRequest {
+  string symbol = 1;
+}
+
+message GetOrderBookResponse {
+  string symbol = 1;
+
+  string sequence_number = 2;
+
+  repeated PriceLevel bids = 3;
+
+  repeated PriceLevel asks = 4;
+}
+
+message PriceLevel {
+  string price = 1;
+
+  string quantity = 2;
+}

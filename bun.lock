@@ -71,10 +71,38 @@
       "name": "@repo/engine",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.1141.0",
+        "@grpc/grpc-js": "*",
+        "@repo/grpc": "*",
         "@repo/kafka": "*",
         "@repo/logger": "*",
         "@repo/pg": "*",
         "@repo/redis": "*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "apps/market-service": {
+      "name": "@repo/market-service",
+      "dependencies": {
+        "@grpc/grpc-js": "*",
+        "@repo/core": "*",
+        "@repo/database": "*",
+        "@repo/grpc": "*",
+        "@repo/kafka": "*",
+        "@repo/logger": "*",
+        "@repo/pg": "*",
+        "@repo/redis": "*",
+        "@types/cookie-parser": "^1.4.10",
+        "@types/express": "^5.0.6",
+        "axios": "^1.19.0",
+        "cookie-parser": "^1.4.7",
+        "express": "^5.2.1",
+        "kafkajs": "^2.2.4",
+        "zod": "^4.4.3",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -766,6 +794,8 @@
     "@repo/kafka": ["@repo/kafka@workspace:packages/kafka"],
 
     "@repo/logger": ["@repo/logger@workspace:packages/logger"],
+
+    "@repo/market-service": ["@repo/market-service@workspace:apps/market-service"],
 
     "@repo/order-service": ["@repo/order-service@workspace:apps/order-service"],
 

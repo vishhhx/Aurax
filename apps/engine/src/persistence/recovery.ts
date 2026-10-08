@@ -1,5 +1,5 @@
 import type { MatchingEngine } from "../matching-engine";
-import type { KafkaPosition, Order, OrderSnapshot } from "../orderbook/order";
+import type { KafkaPosition, Order, OrderSnapshot } from "../types/order";
 import type { OrderBook } from "../orderbook/orderbook";
 import { s3Service } from "../utils/s3";
 
@@ -36,11 +36,23 @@ export class RecoveryManager {
       return null;
     }
 
+    if (snapshot.symbol !== symbol) {
+      throw new Error(
+        `Snapshot symbol mismatch: expected ${symbol}, received ${snapshot.symbol}`,
+      );
+    }
+
     orderBook.restoreOrders(snapshot.orders.map(fromSnapshot));
-    this.engine.restoreSequenceNumber(snapshot.sequenceNumber);
+
+    this.engine.restoreSequenceNumber(symbol, snapshot.sequenceNumber);
+
+    this.engine.restoreOrderSequenceNumber(
+      symbol,
+      snapshot.orderSequenceNumber,
+    );
 
     console.log(
-      `[Recovery] Restored ${symbol} from offset ${snapshot.kafka.offset}`,
+      `[Recovery] Restored ${symbol} from partition ${snapshot.kafka.partition}, offset ${snapshot.kafka.offset}`,
     );
 
     return snapshot.kafka;

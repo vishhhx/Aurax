@@ -2,7 +2,7 @@ import { TOPICS, producer } from "@repo/kafka";
 
 import { CompressionTypes } from "kafkajs";
 
-import type { OrderEvents } from "./events";
+import type { OrderEvents } from "../types/events";
 
 export const producerRouter = async (event: OrderEvents): Promise<void> => {
   switch (event.event) {
@@ -84,7 +84,7 @@ export const producerRouter = async (event: OrderEvents): Promise<void> => {
 
     case "orderbook.updated":
       await producer.send({
-        topic: TOPICS.TRADE_EXECUTED,
+        topic: TOPICS.MARKET_EVENTS,
 
         compression: CompressionTypes.GZIP,
 
