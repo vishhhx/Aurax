@@ -1,7 +1,7 @@
 import express from "express";
 import logger from "./config/logger";
 
-import { authProxy, orderProxy, walletProxy } from "./proxy/proxy";
+import { authProxy, marketProxy, orderProxy, walletProxy } from "./proxy/proxy";
 import { errorMiddleware } from "./middleware/error";
 import cors from "cors";
 import cookieParser from "cookie-parser";
@@ -19,7 +19,8 @@ app.use(cookieParser());
 
 app.use("/api/v1/auth/", authProxy);
 app.use("/api/v1/wallet/", walletProxy);
-app.use("/api/v1/order/", orderProxy); 
+app.use("/api/v1/order/", orderProxy);
+app.use("/api/v1/market/", marketProxy);
 app.use(errorMiddleware);
 
 export default app;

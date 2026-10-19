@@ -1,5 +1,6 @@
 import { consumer as Consumer, TOPICS } from "@repo/kafka";
 
+import { producerRouter } from "../producers/market";
 import { marketOrderBookStore } from "../store/orderbook";
 import type { PriceLevel } from "../types/orderbook";
 
@@ -56,8 +57,26 @@ export async function startOrderBookConsumer(): Promise<void> {
         return;
       }
 
-      // The in-memory order book now reflects the latest snapshot.
-      // Publish market.depth here if required.
+      const currentSnapshot = marketOrderBookStore.getSnapshot(event.symbol);
+
+      if (!currentSnapshot) {
+        return;
+      }
+
+      await producerRouter({
+        event: "market.depth",
+        symbol: currentSnapshot.symbol,
+        bids: currentSnapshot.bids.map((level) => ({
+          price: String(level.price),
+          quantity: String(level.quantity),
+        })),
+        asks: currentSnapshot.asks.map((level) => ({
+          price: String(level.price),
+          quantity: String(level.quantity),
+        })),
+        timestamp: Date.now(),
+        sequenceNumber: String(currentSnapshot.sequenceNumber),
+      });
     },
   });
 }

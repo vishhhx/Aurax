@@ -62,6 +62,7 @@ export class TickerStore {
       ...current,
       ...updates,
       symbol,
+      sequenceNumber: updates.sequenceNumber ?? current.sequenceNumber + 1n,
       updatedAt: Date.now(),
     };
 

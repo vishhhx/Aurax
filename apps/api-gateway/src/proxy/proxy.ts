@@ -82,3 +82,30 @@ export const orderProxy = createProxyMiddleware({
     },
   },
 });
+
+export const marketProxy = createProxyMiddleware({
+  target: ENV.MARKET_SERVICE_URL,
+  changeOrigin: true,
+
+  pathRewrite: {
+    "^/api/v1/market": "",
+  },
+
+  on: {
+    proxyReq(proxyReq, req) {
+      logger.info(
+        `Forwarding ${req.method} ${req.url} -> ${ENV.MARKET_SERVICE_URL}${req.url}`,
+      );
+    },
+
+    proxyRes(proxyRes, req) {
+      logger.info(
+        `Response ${proxyRes.statusCode} <- ${req.method} ${req.url}`,
+      );
+    },
+
+    error(err, req) {
+      logger.error(`Proxy Error ${req.method} ${req.url}: ${err.message}`);
+    },
+  },
+});

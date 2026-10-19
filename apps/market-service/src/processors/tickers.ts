@@ -95,15 +95,12 @@ export class TickerAggregator {
     return { price, quantity };
   }
 
-  /**
-   * Process a live trade or a historical trade during reconstruction.
-   */
+
   public processTrade(event: TradeExecutedEvent): void {
     const { price, quantity } = this.validateTrade(event);
 
     const market = this.getMarket(event.symbol);
 
-    // Ignore duplicate Kafka deliveries.
     if (market.seenTradeIds.has(event.tradeId)) {
       return;
     }
@@ -111,7 +108,7 @@ export class TickerAggregator {
     const now = Date.now();
     const cutoff = now - WINDOW_MS;
 
-    // Ignore trades outside the current 24-hour window.
+  
     if (event.timestamp < cutoff) {
       return;
     }
@@ -127,10 +124,10 @@ export class TickerAggregator {
     market.trades.push(trade);
     market.seenTradeIds.set(event.tradeId, event.timestamp);
 
-    // Remove expired trades and their deduplication entries.
+   
     this.pruneExpiredTrades(event.symbol, now);
 
-    // Keep chronological order, including out-of-order arrivals.
+  
     market.trades.sort(
       (a, b) =>
         a.timestamp - b.timestamp || a.insertionOrder - b.insertionOrder,
@@ -184,7 +181,6 @@ export class TickerAggregator {
 
       baseVolume += trade.quantity;
 
-      // Both price and quantity use 18-decimal fixed-point values.
       quoteVolume += (trade.price * trade.quantity) / SCALE;
     }
 
@@ -210,12 +206,6 @@ export class TickerAggregator {
     });
   }
 
-  /**
-   * Rebuild one market's ticker from historical trades.
-   *
-   * Pass trades in chronological order when possible.
-   * The method also sorts them internally.
-   */
   public reconstructMarket(
     symbol: string,
     historicalTrades: TradeExecutedEvent[],
@@ -257,9 +247,7 @@ export class TickerAggregator {
     }
   }
 
-  /**
-   * Rebuild multiple markets.
-   */
+
   public reconstructMarkets(
     symbols: string[],
     historicalTrades: TradeExecutedEvent[],
@@ -272,16 +260,12 @@ export class TickerAggregator {
     }
   }
 
-  /**
-   * Remove all in-memory ticker aggregation state.
-   */
+
   public clear(): void {
     this.markets.clear();
   }
 
-  /**
-   * Remove one market's aggregation state.
-   */
+
   public resetMarket(symbol: string): void {
     this.markets.delete(symbol);
   }

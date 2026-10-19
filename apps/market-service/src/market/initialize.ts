@@ -8,7 +8,6 @@ const sleep = (ms: number) =>
 export const initializeOrderBooks = async (
   markets: string[],
 ): Promise<void> => {
-  // 1. Wait until the Matching Engine is ready.
   while (true) {
     try {
       const status = await OrderClient.getEngineStatus();
@@ -25,7 +24,6 @@ export const initializeOrderBooks = async (
     await sleep(2000);
   }
 
-  // 2. Restore order books from the Matching Engine.
   for (const symbol of markets) {
     const snapshot = await OrderClient.getOrderBook(symbol);
 
@@ -47,7 +45,6 @@ export const initializeOrderBooks = async (
     );
   }
 
-  // 3. Reconstruct ticker states from persisted trades.
   await reconstructTickerStates(markets);
 
   console.log("Market order books and ticker states initialized");
