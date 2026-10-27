@@ -1,5 +1,7 @@
 "use client"
 
+import { Suspense } from "react"
+
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -10,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { api } from "@/lib/axios"
 
-export default function RegisterPage() {
+function RegisterContent() {
   const params = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -251,5 +253,14 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// useSearchParams() requires a Suspense boundary for static prerendering.
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterContent />
+    </Suspense>
   )
 }

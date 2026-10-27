@@ -12,7 +12,9 @@ export const signToken = (
   secret: string,
   expiresIn: jwt.SignOptions["expiresIn"],
 ): string => {
-  return jwt.sign(payload, secret, { expiresIn });
+  // A unique jti keeps tokens issued in the same second distinct, so every
+  // refresh session (keyed by the token) is separate and rotation really rotates.
+  return jwt.sign(payload, secret, { expiresIn, jwtid: crypto.randomUUID() });
 };
 
 export const verifyToken = (token: string, secret: string): UserPayload => {
@@ -52,6 +54,23 @@ export const extractSocketToken = (socket: any): string | null => {
   const headerToken = socket.handshake?.headers?.authorization;
   if (typeof headerToken === "string" && headerToken.startsWith("Bearer ")) {
     return headerToken.slice(7).trim();
+  }
+
+  // Browsers connect with `withCredentials` and the HttpOnly `accessToken`
+  // cookie, the same fallback the HTTP auth middleware accepts.
+  const cookieHeader = socket.handshake?.headers?.cookie;
+  if (typeof cookieHeader === "string") {
+    for (const part of cookieHeader.split(";")) {
+      const eq = part.indexOf("=");
+      if (eq > 0 && part.slice(0, eq).trim() === "accessToken") {
+        try {
+          const value = decodeURIComponent(part.slice(eq + 1).trim());
+          if (value) return value;
+        } catch {
+          return null;
+        }
+      }
+    }
   }
 
   return null;

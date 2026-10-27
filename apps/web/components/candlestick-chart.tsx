@@ -128,7 +128,7 @@ export default function CandlestickChart({
           const rectY = Math.min(yOpen, yClose)
           const rectHeight = Math.max(1, Math.abs(yClose - yOpen))
 
-          const colorClass = isPositive ? "text-emerald-500" : "text-rose-500"
+          const colorClass = isPositive ? "text-up" : "text-down"
 
           return (
             <g key={i} className="hover:opacity-80 transition-opacity">
@@ -168,7 +168,7 @@ export default function CandlestickChart({
           stroke="currentColor"
           strokeWidth="1"
           strokeDasharray="4,3"
-          className="text-emerald-400"
+          className="text-up"
         />
         {/* Label badge on the right axis */}
         <rect

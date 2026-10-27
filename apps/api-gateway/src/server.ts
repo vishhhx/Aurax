@@ -1,15 +1,15 @@
 import app from "./app";
 import { ENV } from "./config/env";
 import logger from "./config/logger";
-import { connectToredis } from "@repo/redis";
 
-const startServer = async () => {
-  await connectToredis();
-  logger.info("Connected to Redis");
-  const port = ENV.PORT;
-  app.listen(port, () => {
-    logger.info(`Api-Gateway  is running on port ${port}`);
-  });
-};
+const server = app.listen(ENV.PORT, () => {
+  logger.info(`Api-Gateway is running on port ${ENV.PORT}`);
+});
 
-startServer();
+server.on("error", (error) => {
+  logger.fatal({ err: error, port: ENV.PORT }, "API gateway failed to bind");
+  process.exit(1);
+});
+
+process.once("SIGTERM", () => server.close(() => process.exit(0)));
+process.once("SIGINT", () => server.close(() => process.exit(0)));

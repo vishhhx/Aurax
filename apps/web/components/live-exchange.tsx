@@ -335,7 +335,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
       {/* Ticker Detail Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border/50 bg-card/25 p-5 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-emerald-500/10 p-2.5 text-emerald-400 font-bold border border-emerald-500/20 text-sm">
+          <div className="rounded-lg bg-up/10 p-2.5 text-up font-bold border border-up/20 text-sm">
             AURX
           </div>
           <div>
@@ -348,7 +348,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
           <div className="flex flex-col">
             <span className="text-[10px] text-muted-foreground uppercase font-semibold">Last Price</span>
             <span className={`text-xl font-extrabold transition-all duration-300 ${
-              price > prevPrice ? "text-emerald-400" : price < prevPrice ? "text-rose-400" : "text-foreground"
+              price > prevPrice ? "text-up" : price < prevPrice ? "text-down" : "text-foreground"
             }`}>
               ${price.toFixed(2)}
             </span>
@@ -356,7 +356,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
 
           <div className="flex flex-col">
             <span className="text-[10px] text-muted-foreground uppercase font-semibold">24h Change</span>
-            <span className={`text-sm font-bold ${dailyChange >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+            <span className={`text-sm font-bold ${dailyChange >= 0 ? "text-up" : "text-down"}`}>
               {dailyChange >= 0 ? "+" : ""}{dailyChange}%
             </span>
           </div>
@@ -385,12 +385,12 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Candlestick Chart</h3>
-              <Badge variant="outline" className="text-[9px] py-0 px-1 border-border/50 text-emerald-400 bg-emerald-500/5">
+              <Badge variant="outline" className="text-[9px] py-0 px-1 border-border/50 text-up bg-up/5">
                 AURX/USD 2.5s Ticks
               </Badge>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="size-2 animate-pulse rounded-full bg-emerald-400" />
+              <span className="size-2 animate-pulse rounded-full bg-up" />
               <span className="text-xs text-muted-foreground">Live Feed</span>
             </div>
           </div>
@@ -411,7 +411,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
                   type="button"
                   onClick={() => setTradeType("buy")}
                   className={`flex-1 rounded-md py-1 text-xs font-medium transition-all ${
-                    tradeType === "buy" ? "bg-emerald-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    tradeType === "buy" ? "bg-up text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Buy AURX
@@ -420,7 +420,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
                   type="button"
                   onClick={() => setTradeType("sell")}
                   className={`flex-1 rounded-md py-1 text-xs font-medium transition-all ${
-                    tradeType === "sell" ? "bg-rose-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    tradeType === "sell" ? "bg-down text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Sell AURX
@@ -506,8 +506,8 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
                   variant={tradeType === "buy" ? "default" : "outline"}
                   className={`w-full text-xs font-semibold h-8 mt-1 transition-all cursor-pointer ${
                     tradeType === "buy"
-                      ? "bg-emerald-500 hover:bg-emerald-600 border-none text-white"
-                      : "border-rose-500/30 text-rose-400 bg-rose-500/5 hover:bg-rose-500/20"
+                      ? "bg-up hover:bg-up/90 border-none text-white"
+                      : "border-down/30 text-down bg-down/5 hover:bg-down/20"
                   }`}
                 >
                   Place {tradeType === "buy" ? "Buy" : "Sell"} Order
@@ -522,7 +522,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between border-b border-border/30 pb-2">
                     <span className="text-xs text-muted-foreground">USD Cash</span>
-                    <span className="text-sm font-semibold text-emerald-400">${usdBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-sm font-semibold text-up">${usdBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-border/30 pb-2">
                     <span className="text-xs text-muted-foreground">AURX Token</span>
@@ -558,10 +558,10 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
             </div>
 
             {/* Asks (Sells) - Red */}
-            <div className={`flex flex-col gap-1 transition-colors duration-200 ${flashBook === "asks" ? "bg-rose-500/5" : ""}`}>
+            <div className={`flex flex-col gap-1 transition-colors duration-200 ${flashBook === "asks" ? "bg-down/5" : ""}`}>
               {orderBook.asks.map((a, i) => (
                 <div key={`ask-${i}`} className="grid grid-cols-3 hover:bg-muted/30 py-0.5 rounded px-1 transition-colors">
-                  <span className="text-rose-400 font-medium">${a.price.toFixed(2)}</span>
+                  <span className="text-down font-medium">${a.price.toFixed(2)}</span>
                   <span className="text-right text-muted-foreground/80">{a.size.toLocaleString()}</span>
                   <span className="text-right text-muted-foreground/60">{a.total.toLocaleString()}</span>
                 </div>
@@ -577,10 +577,10 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
             </div>
 
             {/* Bids (Buys) - Green */}
-            <div className={`flex flex-col gap-1 transition-colors duration-200 ${flashBook === "bids" ? "bg-emerald-500/5" : ""}`}>
+            <div className={`flex flex-col gap-1 transition-colors duration-200 ${flashBook === "bids" ? "bg-up/5" : ""}`}>
               {orderBook.bids.map((b, i) => (
                 <div key={`bid-${i}`} className="grid grid-cols-3 hover:bg-muted/30 py-0.5 rounded px-1 transition-colors">
-                  <span className="text-emerald-400 font-medium">${b.price.toFixed(2)}</span>
+                  <span className="text-up font-medium">${b.price.toFixed(2)}</span>
                   <span className="text-right text-muted-foreground/80">{b.size.toLocaleString()}</span>
                   <span className="text-right text-muted-foreground/60">{b.total.toLocaleString()}</span>
                 </div>
@@ -596,7 +596,7 @@ export default function LiveExchange({ onTradeExecuted }: LiveExchangeProps) {
             <div className="flex flex-col gap-1.5 max-h-[160px] overflow-y-auto text-[11px] pr-1">
               {recentTrades.map((t) => (
                 <div key={t.id} className="flex justify-between items-center py-0.5 hover:bg-muted/30 rounded px-1 transition-colors">
-                  <span className={`${t.side === "buy" ? "text-emerald-400" : "text-rose-400"} capitalize font-semibold`}>
+                  <span className={`${t.side === "buy" ? "text-up" : "text-down"} capitalize font-semibold`}>
                     {t.side} {t.size.toFixed(1)}
                   </span>
                   <span className="text-muted-foreground">${t.price.toFixed(2)}</span>

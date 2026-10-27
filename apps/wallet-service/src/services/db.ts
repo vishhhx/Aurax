@@ -3,7 +3,8 @@ import { AssetRepository } from "../repositories/asset.repository";
 import { ApiError } from "@repo/core/rest";
 
 export interface CreateDepositInput {
-  amount: number;
+  /** Decimal string, ≤ 8 fractional digits */
+  amount: string;
   userId: string;
   assetId: string;
   network?: string;
@@ -30,18 +31,8 @@ export class DepositService {
     return this.depositRepository.updateOrderId(depositId, orderId);
   }
 
-  async conformPayment({
-    orderId,
-    paymentId,
-  }: {
-    orderId: string;
-    paymentId: string;
-  }) {
-    return this.depositRepository.conformPayment({
-      orderId,
-      paymentId,
-      status: "CONFIRMING",
-    });
+  async conformPayment({ orderId, paymentId, userId }: { orderId: string; paymentId: string; userId: string }) {
+    return this.depositRepository.conformPayment({ orderId, paymentId, userId });
   }
 
   async completeDeposit({
@@ -51,8 +42,6 @@ export class DepositService {
     orderId: string;
     paymentId: string;
   }) {
-    return this.depositRepository.completePayment({
-      orderId,
-    });
+    return this.depositRepository.completePayment({ orderId, paymentId });
   }
 }

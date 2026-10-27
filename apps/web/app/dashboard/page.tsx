@@ -1,13 +1,10 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
 import {
   Loader2,
   Wallet,
   User,
-  LogOut,
   TrendingUp,
   TrendingDown,
   RefreshCw,
@@ -21,12 +18,9 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar } from "@/components/ui/avatar"
 import { useAppDispatch, useAppSelector } from "@/hooks/useRedux"
 import { useRequireAuth } from "@/hooks/useRequireAuth"
-import { signOut } from "@/store/slices/authSlice"
 import { fetchWalletAssets } from "@/store/slices/walletSlice"
 import type { WalletAsset } from "@/store/slices/walletSlice.types"
-import { useTheme } from "next-themes"
-import { SunIcon, MoonIcon } from "lucide-react"
-import { DepositDialog } from "@/components/deposit-dialog"
+import Navbar from "@/components/navbar"
 
 function formatBalance(val: string | number, decimals = 8) {
   const n = typeof val === "string" ? parseFloat(val) : val
@@ -35,15 +29,6 @@ function formatBalance(val: string | number, decimals = 8) {
     minimumFractionDigits: 2,
     maximumFractionDigits: decimals,
   })
-}
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase()
 }
 
 // Skeleton loader row
@@ -142,9 +127,7 @@ function AssetRow({ asset }: { asset: WalletAsset }) {
 }
 
 export default function DashboardPage() {
-  const router = useRouter()
   const dispatch = useAppDispatch()
-  const { resolvedTheme, setTheme } = useTheme()
   const { isAuthenticated, isLoading: authLoading } = useRequireAuth()
   const user = useAppSelector((s) => s.auth.user)
   const {
@@ -164,11 +147,6 @@ export default function DashboardPage() {
   const auth = useAppSelector((s) => s.auth)
 
   console.log("Dashboard:", auth)
-
-  const handleLogout = () => {
-    void dispatch(signOut())
-    router.replace("/login")
-  }
 
   const handleRefreshAssets = () => {
     dispatch(fetchWalletAssets())
@@ -206,78 +184,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* ─── Topbar ──────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          {/* Logo */}
-          <Link href="/" className="group flex items-center gap-2">
-            <span className="bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-500 bg-clip-text text-xl font-bold text-transparent transition-opacity group-hover:opacity-80">
-              Aurax
-            </span>
-            <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-emerald-400 uppercase">
-              Exchange
-            </span>
-          </Link>
-
-          {/* Nav */}
-          <nav className="hidden items-center gap-5 text-xs font-medium text-muted-foreground md:flex">
-            <Link href="/" className="transition-colors hover:text-foreground">
-              Home
-            </Link>
-            <Link href="/dashboard" className="font-semibold text-foreground">
-              Dashboard
-            </Link>
-            <Link
-              href="/trade"
-              className="transition-colors hover:text-foreground"
-            >
-              Markets
-            </Link>
-          </nav>
-
-          {/* Right actions */}
-          <div className="flex items-center gap-3">
-            <DepositDialog />
-
-            {/* Theme toggle */}
-            <button
-              onClick={() =>
-                setTheme(resolvedTheme === "dark" ? "light" : "dark")
-              }
-              className="cursor-pointer rounded-lg border border-border/40 bg-card/20 p-1.5 text-muted-foreground transition-all hover:bg-muted/50 hover:text-foreground"
-              title="Toggle theme"
-            >
-              {resolvedTheme === "dark" ? (
-                <SunIcon className="size-4" />
-              ) : (
-                <MoonIcon className="size-4" />
-              )}
-            </button>
-
-            {/* User avatar */}
-            <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/20 px-3 py-1.5">
-              <div className="flex size-6 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-400">
-                {user ? getInitials(user.name) : "?"}
-              </div>
-              <span className="hidden text-xs font-medium sm:block">
-                {user?.name ?? "User"}
-              </span>
-            </div>
-
-            {/* Logout */}
-            <Button
-              id="btn-logout"
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="gap-2 border-border/60 text-muted-foreground transition-all hover:border-rose-400/40 hover:text-rose-400"
-            >
-              <LogOut className="size-3.5" />
-              <span className="hidden sm:inline">Sign out</span>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       {/* ─── Main ────────────────────────────────────────────────────────── */}
       <main className="mx-auto w-full max-w-7xl flex-1 space-y-8 px-4 py-8 sm:px-6">

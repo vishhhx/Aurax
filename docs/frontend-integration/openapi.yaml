@@ -1,0 +1,996 @@
+openapi: 3.1.0
+info:
+  title: Aurax public API (via api-gateway)
+  version: "2026-10-26"
+  description: |
+    Verified against the route files on 2026-10-26. Every path is relative to the
+    gateway origin (`NEXT_PUBLIC_API_URL`). Amounts are decimal strings.
+    Browser clients authenticate with HttpOnly cookies (send credentials);
+    other clients may send `Authorization: Bearer <accessToken>`.
+    Endpoints that do not exist yet are listed only under `x-proposed` and are
+    NOT callable. See missing-backend-capabilities.md.
+servers:
+  - url: http://localhost:5000
+    description: local api-gateway
+tags:
+  - name: auth
+  - name: wallet
+  - name: order
+  - name: market
+  - name: ops
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: accessToken
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refreshToken
+
+  parameters:
+    Symbol:
+      name: symbol
+      in: path
+      required: true
+      schema: { type: string, example: BTCUSDC }
+      description: Canonical `BTCUSDC`; `BTC-USDC`, `BTC_USDC`, `BTC/USDC` also accepted.
+    Limit200:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    Before:
+      name: before
+      in: query
+      description: Id of the last row of the previous page (keyset pagination, newest first).
+      schema: { type: string }
+
+  schemas:
+    Decimal:
+      type: string
+      pattern: '^-?\d+(\.\d+)?$'
+      example: "0.0012"
+    Envelope:
+      type: object
+      required: [success, data]
+      properties:
+        success: { type: boolean }
+        data: {}
+        message: { type: string }
+        statusCode: { type: integer }
+    Error:
+      type: object
+      required: [success, data, message]
+      properties:
+        success: { type: boolean, const: false }
+        data: { type: "null" }
+        message: { type: string }
+        errors:
+          type: array
+          items: {}
+          description: Service-specific detail ({field,message}, {code}, {status}, strings or zod issues).
+
+    User:
+      type: object
+      properties:
+        userId: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        provider: { type: string, enum: [google, github, local] }
+        isEmailVerified: { type: boolean }
+        lastLogin: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    AssetBalance:
+      type: object
+      properties:
+        assetId: { type: string }
+        symbol: { type: string }
+        name: { type: string }
+        imageUrl: { type: string }
+        decimals: { type: integer }
+        network: { type: [string, "null"] }
+        depositEnabled: { type: boolean }
+        withdrawalEnabled: { type: boolean, description: Metadata only; no withdrawal API exists. }
+        minDeposit: { $ref: "#/components/schemas/Decimal" }
+        minWithdrawal: { $ref: "#/components/schemas/Decimal" }
+        availableBalance: { $ref: "#/components/schemas/Decimal" }
+        lockedBalance: { $ref: "#/components/schemas/Decimal" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    DepositStatus:
+      type: string
+      enum: [PENDING, CONFIRMING, COMPLETED, FAILED]
+      description: FAILED is defined but never set today.
+    Deposit:
+      type: object
+      properties:
+        depositId: { type: string }
+        assetId: { type: string }
+        asset: { type: string, example: USDC }
+        amount: { $ref: "#/components/schemas/Decimal" }
+        status: { $ref: "#/components/schemas/DepositStatus" }
+        method: { type: string, const: RAZORPAY }
+        providerOrderId: { type: [string, "null"] }
+        providerPaymentId: { type: [string, "null"] }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: [string, "null"], format: date-time }
+    DepositQuote:
+      type: object
+      properties:
+        amount: { $ref: "#/components/schemas/Decimal" }
+        currency: { type: string, const: INR }
+        asset: { type: string, const: USDC }
+        creditAmount: { $ref: "#/components/schemas/Decimal" }
+        rate: { $ref: "#/components/schemas/Decimal" }
+        minAmount: { $ref: "#/components/schemas/Decimal" }
+        maxAmount: { $ref: "#/components/schemas/Decimal" }
+    LedgerEntry:
+      type: object
+      properties:
+        ledgerId: { type: string }
+        assetId: { type: string }
+        asset: { type: string }
+        entryType: { type: string, enum: [CREDIT, DEBIT] }
+        amount: { $ref: "#/components/schemas/Decimal" }
+        referenceType: { type: string, enum: [DEPOSIT, WITHDRAWAL, TRADE, FEE, ADJUSTMENT] }
+        referenceId: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    OrderStatus:
+      type: string
+      enum: [PENDING, OPEN, PARTIALLY_FILLED, FILLED, CANCELLED, REJECTED, EXPIRED]
+    OrderInput:
+      type: object
+      required: [symbol, side, orderType, quantity]
+      properties:
+        symbol: { type: string, example: BTCUSDC }
+        side: { type: string, enum: [BUY, SELL] }
+        orderType:
+          type: string
+          enum: [LIMIT, MARKET]
+          description: MARKET BUY is rejected with 400.
+        price:
+          description: Required for LIMIT, forbidden for MARKET.
+          oneOf: [{ $ref: "#/components/schemas/Decimal" }, { type: number }]
+        quantity:
+          oneOf: [{ $ref: "#/components/schemas/Decimal" }, { type: number }]
+        timeInForce: { type: string, enum: [GTC, IOC, FOK], default: GTC }
+        postOnly: { type: boolean, default: false }
+    Order:
+      type: object
+      properties:
+        orderId: { type: string }
+        symbol: { type: string }
+        side: { type: string, enum: [BUY, SELL] }
+        orderType: { type: string, enum: [LIMIT, MARKET] }
+        price: { oneOf: [{ $ref: "#/components/schemas/Decimal" }, { type: "null" }] }
+        quantity: { $ref: "#/components/schemas/Decimal" }
+        executedQuantity: { $ref: "#/components/schemas/Decimal" }
+        remainingQuantity: { $ref: "#/components/schemas/Decimal" }
+        averagePrice: { oneOf: [{ $ref: "#/components/schemas/Decimal" }, { type: "null" }] }
+        timeInForce: { type: string, enum: [GTC, IOC, FOK] }
+        postOnly: { type: boolean }
+        status: { $ref: "#/components/schemas/OrderStatus" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UserTrade:
+      type: object
+      properties:
+        tradeId: { type: string, description: "<executionId>-maker | <executionId>-taker" }
+        executionId: { type: string }
+        orderId: { type: string }
+        symbol: { type: string }
+        side: { type: string, enum: [BUY, SELL] }
+        liquidity: { type: string, enum: [MAKER, TAKER] }
+        price: { $ref: "#/components/schemas/Decimal" }
+        quantity: { $ref: "#/components/schemas/Decimal" }
+        quoteAmount: { $ref: "#/components/schemas/Decimal" }
+        fee: { $ref: "#/components/schemas/Decimal" }
+        feeAsset: { type: string, description: Asset id (always the quote asset). }
+        createdAt: { type: string, format: date-time }
+
+    MarketInfo:
+      type: object
+      properties:
+        marketId: { type: string }
+        symbol: { type: string }
+        baseAsset: { type: string }
+        quoteAsset: { type: string }
+        status: { type: string, enum: [TRADING, HALTED, MAINTENANCE, CANCEL_ONLY, POST_ONLY] }
+        tickSize: { $ref: "#/components/schemas/Decimal" }
+        stepSize: { $ref: "#/components/schemas/Decimal" }
+        minPrice: { $ref: "#/components/schemas/Decimal" }
+        maxPrice: { $ref: "#/components/schemas/Decimal" }
+        minQuantity: { $ref: "#/components/schemas/Decimal" }
+        maxQuantity: { $ref: "#/components/schemas/Decimal" }
+        minNotional: { $ref: "#/components/schemas/Decimal" }
+        makerFee: { $ref: "#/components/schemas/Decimal" }
+        takerFee: { $ref: "#/components/schemas/Decimal" }
+        pricePrecision: { type: integer }
+        quantityPrecision: { type: integer }
+    Level:
+      type: object
+      properties:
+        price: { $ref: "#/components/schemas/Decimal" }
+        quantity: { $ref: "#/components/schemas/Decimal" }
+    OrderBook:
+      type: object
+      properties:
+        symbol: { type: string }
+        sequenceNumber: { type: string }
+        bids: { type: array, items: { $ref: "#/components/schemas/Level" } }
+        asks: { type: array, items: { $ref: "#/components/schemas/Level" } }
+        depth: { type: integer }
+        updatedAt: { type: integer, description: Unix ms }
+    Ticker:
+      type: object
+      properties:
+        symbol: { type: string }
+        lastPrice: { type: [string, "null"] }
+        openPrice: { type: [string, "null"] }
+        highPrice: { type: [string, "null"] }
+        lowPrice: { type: [string, "null"] }
+        priceChange: { type: [string, "null"] }
+        priceChangePercent: { type: [string, "null"], description: Percent (1.5 = 1.5%). }
+        volume: { type: string }
+        quoteVolume: { type: string }
+        tradeCount: { type: integer }
+        lastTradeTimestamp: { type: [integer, "null"] }
+        windowStart: { type: integer }
+        sequenceNumber: { type: string }
+        updatedAt: { type: integer }
+    Candle:
+      type: object
+      properties:
+        symbol: { type: string }
+        interval: { type: string, enum: [1m, 5m, 15m, 1h, 1d] }
+        openTime: { type: integer }
+        closeTime: { type: integer }
+        open: { $ref: "#/components/schemas/Decimal" }
+        high: { $ref: "#/components/schemas/Decimal" }
+        low: { $ref: "#/components/schemas/Decimal" }
+        close: { $ref: "#/components/schemas/Decimal" }
+        baseVolume: { $ref: "#/components/schemas/Decimal" }
+        quoteVolume: { $ref: "#/components/schemas/Decimal" }
+        tradeCount: { type: integer }
+        isClosed: { type: boolean }
+    PublicTrade:
+      type: object
+      properties:
+        tradeId: { type: string }
+        symbol: { type: string }
+        price: { $ref: "#/components/schemas/Decimal" }
+        quantity: { $ref: "#/components/schemas/Decimal" }
+        quoteQuantity: { $ref: "#/components/schemas/Decimal" }
+        side: { type: string, enum: [BUY, SELL], description: Taker side. }
+        isBuyerMaker: { type: boolean }
+        timestamp: { type: integer }
+
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired access token. Refresh once, then re-login.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    BadRequest:
+      description: Validation or business-rule failure.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Unknown resource, or not owned by the caller.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotReady:
+      description: market-service not initialised yet.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+
+paths:
+  # ─── auth ──────────────────────────────────────────────────────────────
+  /api/v1/auth/oauth2/google:
+    get:
+      operationId: startGoogleOAuth
+      tags: [auth]
+      summary: Start Google sign-in
+      description: Returns the provider URL (navigate to it) and sets the HttpOnly `oauthState` cookie. Call with credentials.
+      security: []
+      responses:
+        "200":
+          description: Provider authorization URL
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: string, format: uri } }
+  /api/v1/auth/oauth2/github:
+    get:
+      operationId: startGithubOAuth
+      tags: [auth]
+      summary: Start GitHub sign-in
+      security: []
+      responses:
+        "200":
+          description: Provider authorization URL
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: string, format: uri } }
+  /api/v1/auth/oauth2/google/callback:
+    get:
+      operationId: googleOAuthCallback
+      tags: [auth]
+      summary: Provider redirect target (browser navigation only)
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        "302":
+          description: Success → FRONTEND_URL/auth/success (sets accessToken + refreshToken cookies); failure → FRONTEND_URL/login?error=auth_failed
+  /api/v1/auth/oauth2/github/callback:
+    get:
+      operationId: githubOAuthCallback
+      tags: [auth]
+      summary: Provider redirect target (browser navigation only)
+      security: []
+      parameters:
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+      responses:
+        "302":
+          description: Same as the Google callback.
+  /api/v1/auth/sessions/refresh:
+    post:
+      operationId: refreshSession
+      tags: [auth]
+      summary: Rotate the refresh session
+      description: Single use. Sets both cookies again. Must be single-flight on the client.
+      security: [{ refreshCookie: [] }, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: New tokens issued
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: object, properties: { accessToken: { type: string } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/auth/sessions/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Revoke the refresh session and clear cookies (idempotent)
+      security: [{}, { refreshCookie: [] }, { bearerAuth: [] }]
+      responses:
+        "200":
+          description: Always, even without a session
+          content: { application/json: { schema: { $ref: "#/components/schemas/Envelope" } } }
+  /api/v1/auth/details:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Current user (cached up to 1 h)
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/User" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/auth/user-details:
+    get:
+      operationId: getCurrentUserAlias
+      tags: [auth]
+      summary: Alias of /api/v1/auth/details
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/User" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # ─── wallet ────────────────────────────────────────────────────────────
+  /api/v1/wallet/assets:
+    get:
+      operationId: listAssetBalances
+      tags: [wallet]
+      summary: All assets with the caller's balances
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/AssetBalance" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/wallet/payment/razorpay/quote:
+    get:
+      operationId: quoteDeposit
+      tags: [wallet]
+      summary: USDC that an INR deposit would credit (no side effects)
+      parameters:
+        - { name: amount, in: query, required: true, schema: { type: string, example: "500" }, description: "INR, ≤ 2 decimals, 100–500000" }
+      responses:
+        "200":
+          description: Quote
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/DepositQuote" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/wallet/payment/razorpay/init-deposit:
+    post:
+      operationId: initDeposit
+      tags: [wallet]
+      summary: Create a PENDING deposit and its Razorpay order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { oneOf: [{ type: string }, { type: number }], description: "INR, ≤ 2 decimals, 100–500000" }
+      responses:
+        "200":
+          description: The Razorpay order object (`id` for Checkout; `receipt` = depositId)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          id: { type: string }
+                          amount: { type: integer, description: paise }
+                          currency: { type: string }
+                          receipt: { type: string }
+                          status: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/wallet/payment/razorpay/verify:
+    post:
+      operationId: verifyDepositPayment
+      tags: [wallet]
+      summary: Record Checkout's signed result (does not credit)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [razorpay_order_id, razorpay_payment_id, razorpay_signature]
+              properties:
+                razorpay_order_id: { type: string }
+                razorpay_payment_id: { type: string }
+                razorpay_signature: { type: string }
+      responses:
+        "200":
+          description: Verified; status CONFIRMING (or COMPLETED if the webhook came first)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          depositId: { type: string }
+                          orderId: { type: string }
+                          paymentId: { type: string }
+                          verified: { type: boolean }
+                          status: { $ref: "#/components/schemas/DepositStatus" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/wallet/deposits:
+    get:
+      operationId: listDeposits
+      tags: [wallet]
+      summary: Caller's deposits, newest first
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/DepositStatus" } }
+        - $ref: "#/components/parameters/Limit200"
+        - $ref: "#/components/parameters/Before"
+      responses:
+        "200":
+          description: Deposits
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/Deposit" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/wallet/deposits/{depositId}:
+    get:
+      operationId: getDeposit
+      tags: [wallet]
+      summary: One deposit (status polling)
+      parameters:
+        - { name: depositId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Deposit
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/Deposit" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/wallet/ledger:
+    get:
+      operationId: listLedger
+      tags: [wallet]
+      summary: Caller's balance movements, newest first
+      parameters:
+        - { name: assetId, in: query, schema: { type: string } }
+        - { name: referenceType, in: query, schema: { type: string, enum: [DEPOSIT, WITHDRAWAL, TRADE, FEE, ADJUSTMENT] } }
+        - $ref: "#/components/parameters/Limit200"
+        - $ref: "#/components/parameters/Before"
+      responses:
+        "200":
+          description: Ledger entries
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/LedgerEntry" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/wallet/webhook/razorpay:
+    post:
+      operationId: razorpayWebhook
+      tags: [wallet]
+      summary: Razorpay webhook (server-to-server; never called by the frontend)
+      security: []
+      parameters:
+        - { name: x-razorpay-signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object } } }
+      responses:
+        "200": { description: Processed (idempotent) }
+        "401": { description: Missing or invalid signature }
+
+  # ─── order ─────────────────────────────────────────────────────────────
+  /api/v1/order:
+    post:
+      operationId: placeOrder
+      tags: [order]
+      summary: Place an order (asynchronous)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/OrderInput" } } }
+      responses:
+        "202":
+          description: Funds reserved and command queued; final state via WebSocket or GET /api/v1/order/{orderId}
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          order: { $ref: "#/components/schemas/Order" }
+                          reserved:
+                            type: object
+                            properties:
+                              assetId: { type: string }
+                              amount: { $ref: "#/components/schemas/Decimal" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Duplicate order reference }
+        "503": { description: Reservation service unavailable }
+    get:
+      operationId: listOrders
+      tags: [order]
+      summary: Caller's orders, newest first
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [open, closed, all], default: all } }
+        - { name: symbol, in: query, schema: { type: string } }
+        - $ref: "#/components/parameters/Limit200"
+        - $ref: "#/components/parameters/Before"
+      responses:
+        "200":
+          description: Orders
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/Order" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/order/trades:
+    get:
+      operationId: listMyTrades
+      tags: [order]
+      summary: Caller's fills, newest first
+      parameters:
+        - { name: symbol, in: query, schema: { type: string } }
+        - $ref: "#/components/parameters/Limit200"
+        - $ref: "#/components/parameters/Before"
+      responses:
+        "200":
+          description: Fills
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/UserTrade" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /api/v1/order/{orderId}:
+    parameters:
+      - { name: orderId, in: path, required: true, schema: { type: string } }
+    get:
+      operationId: getOrder
+      tags: [order]
+      summary: One order with its fills
+      responses:
+        "200":
+          description: Order
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/Order"
+                          - properties: { fills: { type: array, items: { $ref: "#/components/schemas/UserTrade" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: cancelOrder
+      tags: [order]
+      summary: Request cancellation of the unfilled remainder
+      responses:
+        "202":
+          description: Cancel queued; outcome via order.cancelled / order.cancel_rejected
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/Order" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Order already terminal }
+
+  # ─── market (public) ───────────────────────────────────────────────────
+  /api/v1/market/markets:
+    get:
+      operationId: listMarkets
+      tags: [market]
+      summary: Served markets with trading rules
+      security: []
+      responses:
+        "200":
+          description: Markets
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/MarketInfo" } } }
+        "503": { $ref: "#/components/responses/NotReady" }
+  /api/v1/market/tickers:
+    get:
+      operationId: listTickers
+      tags: [market]
+      summary: 24h tickers for every served market
+      security: []
+      responses:
+        "200":
+          description: Tickers
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/Ticker" } } }
+        "503": { $ref: "#/components/responses/NotReady" }
+  /api/v1/market/markets/{symbol}:
+    get:
+      operationId: getMarket
+      tags: [market]
+      summary: One market
+      security: []
+      parameters: [{ $ref: "#/components/parameters/Symbol" }]
+      responses:
+        "200":
+          description: Market
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/MarketInfo" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/market/markets/{symbol}/status:
+    get:
+      operationId: getMarketStatus
+      tags: [market]
+      summary: Market status and freshness
+      security: []
+      parameters: [{ $ref: "#/components/parameters/Symbol" }]
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          symbol: { type: string }
+                          status: { type: string }
+                          orderBookSequenceNumber: { type: [string, "null"] }
+                          orderBookUpdatedAt: { type: [integer, "null"] }
+                          lastTradeTimestamp: { type: [integer, "null"] }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /api/v1/market/markets/{symbol}/orderbook:
+    get:
+      operationId: getOrderBook
+      tags: [market]
+      summary: Order book depth
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500 } }
+        - { name: view, in: query, schema: { type: string, enum: [published] }, description: "Exactly the top-N view that WS depth deltas describe" }
+      responses:
+        "200":
+          description: Book
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/OrderBook" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/NotReady" }
+  /api/v1/market/markets/{symbol}/bookTicker:
+    get:
+      operationId: getBookTicker
+      tags: [market]
+      summary: Best bid and ask
+      security: []
+      parameters: [{ $ref: "#/components/parameters/Symbol" }]
+      responses:
+        "200":
+          description: Best bid/ask (null when that side is empty)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          symbol: { type: string }
+                          bidPrice: { type: [string, "null"] }
+                          bidQuantity: { type: [string, "null"] }
+                          askPrice: { type: [string, "null"] }
+                          askQuantity: { type: [string, "null"] }
+                          sequenceNumber: { type: string }
+        "503": { $ref: "#/components/responses/NotReady" }
+  /api/v1/market/markets/{symbol}/ticker:
+    get:
+      operationId: getTicker
+      tags: [market]
+      summary: 24h ticker (alias /ticker/24hr)
+      security: []
+      parameters: [{ $ref: "#/components/parameters/Symbol" }]
+      responses:
+        "200":
+          description: Ticker
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/Ticker" } }
+        "503": { $ref: "#/components/responses/NotReady" }
+  /api/v1/market/markets/{symbol}/ticker/24hr:
+    get:
+      operationId: getTicker24hr
+      tags: [market]
+      summary: Alias of /ticker
+      security: []
+      parameters: [{ $ref: "#/components/parameters/Symbol" }]
+      responses:
+        "200":
+          description: Ticker
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/Ticker" } }
+  /api/v1/market/markets/{symbol}/price:
+    get:
+      operationId: getPrice
+      tags: [market]
+      summary: Last trade price
+      security: []
+      parameters: [{ $ref: "#/components/parameters/Symbol" }]
+      responses:
+        "200":
+          description: Price (null before the first trade)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          symbol: { type: string }
+                          price: { type: [string, "null"] }
+                          timestamp: { type: [integer, "null"] }
+  /api/v1/market/markets/{symbol}/candles:
+    get:
+      operationId: getCandles
+      tags: [market]
+      summary: Candles, oldest first
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - { name: interval, in: query, required: true, schema: { type: string, enum: [1m, 5m, 15m, 1h, 1d] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000 } }
+        - { name: startTime, in: query, schema: { type: integer }, description: Unix ms }
+        - { name: endTime, in: query, schema: { type: integer }, description: Unix ms }
+      responses:
+        "200":
+          description: Candles
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/Candle" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /api/v1/market/markets/{symbol}/trades:
+    get:
+      operationId: getRecentTrades
+      tags: [market]
+      summary: Recent public trades, newest first (memory)
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - { name: limit, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Trades
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { type: array, items: { $ref: "#/components/schemas/PublicTrade" } } }
+  /api/v1/market/markets/{symbol}/historical-trades:
+    get:
+      operationId: getHistoricalTrades
+      tags: [market]
+      summary: Public trade history (cursor pagination)
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000 } }
+        - { name: startTime, in: query, schema: { type: integer } }
+        - { name: endTime, in: query, schema: { type: integer } }
+        - { name: cursor, in: query, schema: { type: string }, description: nextCursor from the previous page }
+      responses:
+        "200":
+          description: Page
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          trades: { type: array, items: { $ref: "#/components/schemas/PublicTrade" } }
+                          nextCursor: { type: [string, "null"] }
+                          limit: { type: integer }
+        "400": { $ref: "#/components/responses/BadRequest" }
+  /api/v1/market/markets/{symbol}/trades/{tradeId}:
+    get:
+      operationId: getPublicTrade
+      tags: [market]
+      summary: One public trade
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - { name: tradeId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Trade
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - properties: { data: { $ref: "#/components/schemas/PublicTrade" } }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ─── ops ───────────────────────────────────────────────────────────────
+  /health:
+    get:
+      operationId: gatewayHealth
+      tags: [ops]
+      summary: Gateway liveness (does not check upstreams)
+      security: []
+      responses:
+        "200": { description: Live }
+  /api/v1/market/health/ready:
+    get:
+      operationId: marketReadiness
+      tags: [ops]
+      summary: market-service readiness
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+
+x-proposed:
+  description: NOT implemented. Listed so the frontend can plan; see missing-backend-capabilities.md.
+  endpoints:
+    - { method: POST, path: /api/v1/wallet/withdrawals, ref: "missing-backend-capabilities.md#1-withdrawals-p1" }
+    - { method: GET, path: /api/v1/wallet/withdrawals, ref: "missing-backend-capabilities.md#1-withdrawals-p1" }
+    - { method: POST, path: /api/v1/auth/register, ref: "missing-backend-capabilities.md#2-emailpassword-accounts-and-recovery-p2" }
+    - { method: POST, path: /api/v1/auth/login, ref: "missing-backend-capabilities.md#2-emailpassword-accounts-and-recovery-p2" }
+    - { method: POST, path: /api/v1/auth/password/forgot, ref: "missing-backend-capabilities.md#2-emailpassword-accounts-and-recovery-p2" }
+    - { method: GET, path: /api/v1/auth/sessions, ref: "missing-backend-capabilities.md#7-account-security-p2" }
+    - { method: DELETE, path: "/api/v1/auth/sessions/{sessionId}", ref: "missing-backend-capabilities.md#7-account-security-p2" }
+    - { method: DELETE, path: "/api/v1/order?symbol=", ref: "missing-backend-capabilities.md#6-order-management-extras-p3" }
+    - { method: GET, path: /api/v1/market/assets, ref: "missing-backend-capabilities.md#8-public-asset-metadata-p3" }

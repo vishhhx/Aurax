@@ -1,13 +1,11 @@
 import { Router } from "express";
-import {
-  depositeinitialize,
-  verifyPayments,
-  RazorpayWebhook,
-} from "../controller/deposit.controller";
+import { depositQuote, depositeinitialize, verifyPayments } from "../controller/deposit.controller";
 export const razorpayRouter = Router();
 
+razorpayRouter.get("/quote", depositQuote);
 razorpayRouter.post("/init-deposit", depositeinitialize);
 
 razorpayRouter.post("/verify", verifyPayments);
 
-razorpayRouter.post("/webhook", RazorpayWebhook);
+// The webhook is served unauthenticated with a raw body at /webhook/razorpay
+// (see weebhook.router.ts); it cannot work behind JSON parsing and auth.

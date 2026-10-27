@@ -1,152 +1,212 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { AnimatePresence, motion } from "framer-motion"
+import Link from "next/link"
 import {
-  Banknote,
-  Bitcoin,
-  ChevronRight,
-  CreditCard,
-  ShieldCheck,
+  ArrowDownToLineIcon,
+  ArrowRightIcon,
+  BanknoteIcon,
+  BuildingIcon,
+  CoinsIcon,
+  ShieldCheckIcon,
+  SmartphoneIcon,
+  WalletIcon,
+  XIcon,
+  ZapIcon,
 } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+type DepositTab = "fiat" | "crypto"
+type FiatMethod = "razorpay" | "bank"
 
-export function DepositDialog() {
-  const router = useRouter()
+const FIAT_METHODS = [
+  {
+    id: "razorpay",
+    name: "UPI, cards & netbanking",
+    detail: "Powered by Razorpay · Arrives in seconds",
+    icon: SmartphoneIcon,
+    badge: "Instant",
+    disabled: false,
+  },
+  {
+    id: "bank",
+    name: "Bank transfer",
+    detail: "IMPS / NEFT to Aurax account",
+    icon: BuildingIcon,
+    badge: "Soon",
+    disabled: true,
+  },
+] as const
 
+const FIAT_NOTES = [
+  { icon: WalletIcon, text: "Credited as USDC to your Spot wallet" },
+  { icon: ZapIcon, text: "Minimum ₹100 · Credited once payment is verified" },
+  { icon: ShieldCheckIcon, text: "Card & UPI details are handled by Razorpay, never stored by Aurax" },
+] as const
+
+const PAYMENT_ROUTE = "/payment/razorpay"
+
+export function DepositDialog({ trigger }: { trigger?: React.ReactNode }) {
   const [open, setOpen] = useState(false)
-  const [tab, setTab] = useState<"cash" | "crypto">("cash")
-
-  const continueToRazorpay = () => {
-    setOpen(false)
-    router.push("/payment/razorpay")
-  }
+  const [tab, setTab] = useState<DepositTab>("fiat")
+  const [method, setMethod] = useState<FiatMethod>("razorpay")
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          Deposit
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Button>
+        {trigger ?? (
+          <Button size="sm">
+            <ArrowDownToLineIcon data-icon="inline-start" />
+            Deposit
+          </Button>
+        )}
       </DialogTrigger>
 
-      <DialogContent className="max-w-md overflow-hidden p-0">
-        <DialogHeader className="border-b px-6 py-5 text-center">
-          <DialogTitle className="text-xl">Deposit</DialogTitle>
-
-          <DialogDescription>Add funds to your Aurax wallet</DialogDescription>
+      <DialogContent className="gap-0 p-0 sm:max-w-md">
+        <DialogHeader className="px-6 pt-6 pb-4">
+          <DialogTitle>Deposit funds</DialogTitle>
+          <DialogDescription>
+            Add money to your Aurax account to start trading.
+          </DialogDescription>
         </DialogHeader>
-
-        <div className="px-6 pt-5">
-          <Tabs
-            value={tab}
-            onValueChange={(v) => setTab(v as "cash" | "crypto")}
+        <DialogClose asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Close"
+            className="absolute top-4 right-4"
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger
-                value="cash"
-                className="gap-2 data-[state=active]:bg-emerald-500/15 data-[state=active]:text-emerald-600"
-              >
-                <Banknote className="h-4 w-4" />
-                Cash
-              </TabsTrigger>
+            <XIcon />
+          </Button>
+        </DialogClose>
 
-              <TabsTrigger
-                value="crypto"
-                className="gap-2 data-[state=active]:bg-red-500/15 data-[state=active]:text-red-500"
-              >
-                <Bitcoin className="h-4 w-4" />
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as DepositTab)}
+          className="flex flex-col"
+        >
+          <div className="px-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="fiat" className="gap-2">
+                <BanknoteIcon aria-hidden="true" className="size-4" />
+                Fiat · INR
+              </TabsTrigger>
+              <TabsTrigger value="crypto" className="gap-2">
+                <CoinsIcon aria-hidden="true" className="size-4" />
                 Crypto
               </TabsTrigger>
             </TabsList>
-          </Tabs>
-        </div>
+          </div>
 
-        <div className="relative h-[280px] overflow-hidden px-6 py-5">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={tab}
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -30 }}
-              transition={{ duration: 0.22 }}
-              className="absolute inset-0 px-6 py-5"
-            >
-              {tab === "cash" && (
-                <div className="flex h-full flex-col">
-                  <div className="space-y-4">
-                    <div>
-                      <p className="mb-2 text-sm font-medium">Payment Method</p>
-
-                      <button
-                        type="button"
-                        className="flex w-full items-center justify-between rounded-xl border p-4 transition-colors hover:bg-muted/50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10">
-                            <CreditCard className="h-5 w-5 text-primary" />
-                          </div>
-
-                          <div className="text-left">
-                            <p className="font-medium">Razorpay</p>
-
-                            <p className="text-xs text-muted-foreground">
-                              UPI • Debit Card • Credit Card • Net Banking
-                            </p>
-                          </div>
-                        </div>
-
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <Button
-                    size="lg"
-                    className="mt-auto w-full"
-                    onClick={continueToRazorpay}
+          <TabsContent
+            value="fiat"
+            className="flex flex-col gap-5 px-6 pt-5 pb-6 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 motion-reduce:animate-none"
+          >
+            <div className="flex flex-col gap-2">
+              <p id="deposit-method-label" className="text-sm font-medium">
+                Payment method
+              </p>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                orientation="vertical"
+                value={method}
+                onValueChange={(v) => v && setMethod(v as FiatMethod)}
+                aria-labelledby="deposit-method-label"
+                className="w-full"
+              >
+                {FIAT_METHODS.map((m) => (
+                  <ToggleGroupItem
+                    key={m.id}
+                    value={m.id}
+                    disabled={m.disabled}
+                    className="h-auto w-full justify-start gap-3 p-3 text-left whitespace-normal data-[state=on]:border-primary data-[state=on]:bg-primary/5"
                   >
-                    Continue Deposit
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <m.icon aria-hidden="true" className="size-5" />
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="font-medium">{m.name}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {m.detail}
+                      </span>
+                    </span>
+                    <Badge variant={m.disabled ? "outline" : "secondary"}>
+                      {m.badge}
+                    </Badge>
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
 
-              {tab === "crypto" && (
-                <div className="flex h-full flex-col items-center justify-center text-center">
-                  <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
-                    <Bitcoin className="h-8 w-8 text-red-500" />
-                  </div>
+            <Separator />
 
-                  <h3 className="text-lg font-semibold">Crypto Deposit</h3>
+            <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">
+              {FIAT_NOTES.map((n) => (
+                <li key={n.text} className="flex items-start gap-2.5">
+                  <n.icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary-emphasis" />
+                  {n.text}
+                </li>
+              ))}
+            </ul>
 
-                  <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-                    Deposit directly using your preferred blockchain. This
-                    feature is currently under development.
-                  </p>
+            <DialogFooter className="sm:justify-stretch">
+              <Button asChild size="lg" className="h-11 w-full">
+                <Link href={PAYMENT_ROUTE} onClick={() => setOpen(false)}>
+                  Continue to payment
+                  <ArrowRightIcon data-icon="inline-end" />
+                </Link>
+              </Button>
+            </DialogFooter>
+          </TabsContent>
 
-                  <Button disabled variant="secondary" className="mt-8 w-full">
-                    Coming Soon
-                  </Button>
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+          <TabsContent
+            value="crypto"
+            className="px-6 pt-2 pb-6 data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:slide-in-from-bottom-1 motion-reduce:animate-none"
+          >
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CoinsIcon />
+                </EmptyMedia>
+                <EmptyTitle>On-chain deposits are coming soon</EmptyTitle>
+                <EmptyDescription>
+                  Deposits for BTC, ETH, SOL and USDC on their native networks
+                  are under development. Meanwhile, buy USDC instantly with INR.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button variant="outline" onClick={() => setTab("fiat")}>
+                  <BanknoteIcon data-icon="inline-start" />
+                  Deposit INR instead
+                </Button>
+              </EmptyContent>
+            </Empty>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )

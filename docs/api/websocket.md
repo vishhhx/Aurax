@@ -1,5 +1,8 @@
 # WebSocket API
 
+> **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
+> The current, code-verified contract is [websocket-api.md](../frontend-integration/websocket-api.md).
+
 ## Overview
 
 The WebSocket Service provides real-time communication between backend services and authenticated clients.

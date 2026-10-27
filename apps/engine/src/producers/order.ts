@@ -1,110 +1,27 @@
 import { TOPICS, producer } from "@repo/kafka";
-
 import { CompressionTypes } from "kafkajs";
 
 import type { OrderEvents } from "../types/events";
 
+/**
+ * - Execution reports (trades and order lifecycle) → `trade.executed`, key =
+ *   symbol: a single ordered stream per market for order-service settlement,
+ *   market-service and the socket gateway.
+ * - Book snapshots → `market.events`, key = symbol.
+ */
 export const producerRouter = async (event: OrderEvents): Promise<void> => {
-  switch (event.event) {
-    case "order.completed":
-      await producer.send({
-        topic: TOPICS.ORDER_EVENTS,
+  const topic = event.event === "orderbook.updated" ? TOPICS.MARKET_EVENTS : TOPICS.TRADE_EXECUTED;
 
-        compression: CompressionTypes.GZIP,
-
-        acks: -1,
-
-        messages: [
-          {
-            key: event.orderId,
-
-            value: JSON.stringify(event),
-          },
-        ],
-      });
-
-      return;
-
-    case "order.rejected":
-      await producer.send({
-        topic: TOPICS.ORDER_EVENTS,
-
-        compression: CompressionTypes.GZIP,
-
-        acks: -1,
-
-        messages: [
-          {
-            key: event.orderId,
-
-            value: JSON.stringify(event),
-          },
-        ],
-      });
-
-      return;
-
-    case "order.cancelled":
-      await producer.send({
-        topic: TOPICS.ORDER_EVENTS,
-
-        compression: CompressionTypes.GZIP,
-
-        acks: -1,
-
-        messages: [
-          {
-            key: event.orderId,
-
-            value: JSON.stringify(event),
-          },
-        ],
-      });
-
-      return;
-
-    case "trade.executed":
-      await producer.send({
-        topic: TOPICS.TRADE_EXECUTED,
-
-        compression: CompressionTypes.GZIP,
-
-        acks: -1,
-
-        messages: [
-          {
-            key: event.symbol,
-
-            value: JSON.stringify(event),
-          },
-        ],
-      });
-
-      return;
-
-    case "orderbook.updated":
-      await producer.send({
-        topic: TOPICS.MARKET_EVENTS,
-
-        compression: CompressionTypes.GZIP,
-
-        acks: -1,
-
-        messages: [
-          {
-            key: event.symbol,
-
-            value: JSON.stringify(event),
-          },
-        ],
-      });
-
-      return;
-
-    default: {
-      const _exhaustive: never = event;
-
-      throw new Error(`Unsupported event: ${_exhaustive}`);
-    }
-  }
+  await producer.send({
+    topic,
+    compression: CompressionTypes.GZIP,
+    acks: -1,
+    messages: [
+      {
+        key: event.symbol,
+        value: JSON.stringify(event),
+        headers: { "event-type": event.event, ...("eventId" in event ? { "event-id": event.eventId } : {}) },
+      },
+    ],
+  });
 };

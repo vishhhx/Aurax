@@ -1,126 +1,114 @@
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
 
-import { ApiError, asyncHandler } from "@repo/core/rest";
+import { ApiError, ApiReponse, asyncHandler } from "@repo/core/rest";
 
-import type { OrderInput } from "../schemas/order.schema";
-
+import logger from "../config/logger";
+import walletClient, { WalletRpcError } from "../grpc/clients/wallet";
 import marketRepository from "../repositories/market.repositories";
-import orderRepository from "../repositories/order.repositorie";
+import orderRepository, { CursorNotFoundError } from "../repositories/order.repositorie";
+import { listOrdersSchema, listTradesSchema, type OrderInput } from "../schemas/order.schema";
+import { reservationFor, validateOrder } from "../services/order-rules";
 
-import walletClient from "../grpc/clients/wallet";
-import { publishOrderCreatedEvent } from "../producer/order.producer";
+const RESERVATION_ERRORS: Record<string, [number, string]> = {
+  INSUFFICIENT_BALANCE: [400, "Insufficient available balance"],
+  WALLET_NOT_FOUND: [400, "No balance for this asset; deposit first"],
+  DUPLICATE_REFERENCE: [409, "Duplicate order reference"],
+};
 
+/**
+ * POST / — place an order.
+ *
+ * 1. Validate against the market's trading rules.
+ * 2. Reserve funds in wallet-service (must succeed).
+ * 3. Persist the order and its engine command atomically (outbox).
+ * 4. If 3 fails, release the reservation so no funds stay locked.
+ *
+ * 202 Accepted: the engine processes the order asynchronously; its lifecycle
+ * arrives via the private WebSocket channel and GET /:orderId.
+ */
 export const createOrder = asyncHandler(async (req: Request, res: Response) => {
   const { userId } = req.user!;
-  const orderDetails: OrderInput = req.body;
+  const input: OrderInput = req.body;
+
+  const market = await marketRepository.findBySymbol(input.symbol);
+  if (!market) throw new ApiError(404, `Market not found: ${input.symbol}`);
+
+  validateOrder(market, input);
+  const { assetId, amount } = reservationFor(market, input);
   const referenceId = crypto.randomUUID();
 
-  const market = await marketRepository.findBySymbol(orderDetails.symbol);
-
-  if (!market) {
-    throw new ApiError(400, "Market not found");
+  try {
+    await walletClient.reserveBalance(userId, assetId, amount.toFixed(), referenceId);
+  } catch (error) {
+    if (error instanceof WalletRpcError) {
+      const [status, message] = RESERVATION_ERRORS[error.code] ?? [503, "Unable to reserve balance; try again"];
+      throw new ApiError(status, message, [{ code: error.code }]);
+    }
+    throw error;
   }
 
-  if (!market.isEnabled || market.status !== "TRADING") {
-    throw new ApiError(400, "Market is not available for trading");
-  }
-
-  if (orderDetails.quantity <= 0) {
-    throw new ApiError(400, "Quantity must be greater than zero");
-  }
-
-  if (
-    orderDetails.quantity < Number(market.minQuantity) ||
-    orderDetails.quantity > Number(market.maxQuantity)
-  ) {
-    throw new ApiError(
-      400,
-      `Quantity must be between ${market.minQuantity} and ${market.maxQuantity}`,
+  let order;
+  try {
+    order = await orderRepository.createOrderWithCommand({ input, userId, referenceId, marketId: market.marketId });
+  } catch (error) {
+    logger.error({ err: error, referenceId }, "Order persistence failed; releasing reservation");
+    await walletClient.releaseBalance(referenceId).catch((releaseError) =>
+      // Detected by the reservation reconciliation check (ACTIVE reservation without an order).
+      logger.error({ err: releaseError, referenceId }, "Reservation release failed; requires reconciliation"),
     );
+    throw new ApiError(500, "Order could not be placed; funds were not used");
   }
 
-  if (orderDetails.orderType === "LIMIT") {
-    if (orderDetails.price === undefined) {
-      throw new ApiError(400, "Price is required for LIMIT orders");
-    }
-
-    if (orderDetails.price <= 0) {
-      throw new ApiError(400, "Price must be greater than zero");
-    }
-
-    if (
-      orderDetails.price < Number(market.minPrice) ||
-      orderDetails.price > Number(market.maxPrice)
-    ) {
-      throw new ApiError(
-        400,
-        `Price must be between ${market.minPrice} and ${market.maxPrice}`,
-      );
-    }
-  }
-
-  let assetId: string;
-  let amount: number;
-
-  if (orderDetails.side === "SELL") {
-    assetId = market.baseAssetId;
-    amount = orderDetails.quantity;
-  } else {
-    assetId = market.quoteAssetId;
-
-    if (orderDetails.orderType === "LIMIT") {
-      amount = orderDetails.price! * orderDetails.quantity;
-    } else {
-      const estimatedPrice = await getEstimatedMarketPrice(orderDetails.symbol);
-
-      amount = estimatedPrice * orderDetails.quantity;
-    }
-  }
-
-  const notional =
-    orderDetails.orderType === "LIMIT"
-      ? orderDetails.price! * orderDetails.quantity
-      : amount;
-
-  if (notional < Number(market.minNotional)) {
-    throw new ApiError(
-      400,
-      `Order value must be at least ${market.minNotional}`,
-    );
-  }
-
-  const reserveBalanceResponse = await walletClient.reserveBalance(
-    userId,
-    assetId,
-    amount.toString(),
-    referenceId,
-  );
-
-  const order = await orderRepository.createOrder({
-    orderType: orderDetails.orderType,
-    side: orderDetails.side,
-    price: orderDetails.price,
-    quantity: orderDetails.quantity,
-    symbol: orderDetails.symbol,
-    userId,
-    referenceId,
-    marketId: market.marketId,
-  });
-
-  await publishOrderCreatedEvent(order);
-
-  return res.status(201).json({
-    success: true,
-    data: {
-      order,
-      referenceId,
-      reserveBalanceResponse,
-    },
-  });
+  return res.status(202).json(new ApiReponse(true, { order, reserved: { assetId, amount: amount.toFixed() } }, "Order accepted", 202));
 });
 
-const getEstimatedMarketPrice = async (symbol: string): Promise<number> => {
-  console.log(`Getting estimated price for ${symbol}`);
-  return 100;
+/** DELETE /:orderId — request cancellation of the unfilled remainder. */
+export const cancelOrder = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.user!;
+  const outcome = await orderRepository.requestCancel(userId, String(req.params.orderId));
+
+  if (outcome.result === "not_found") throw new ApiError(404, "Order not found");
+  if (outcome.result === "not_active") {
+    throw new ApiError(409, `Order is already ${outcome.order.status.toLowerCase()}`, [{ status: outcome.order.status }]);
+  }
+  return res.status(202).json(new ApiReponse(true, outcome.order, "Cancellation requested", 202));
+});
+
+/** GET /?status=open|closed|all&symbol&limit&before — the caller's orders, newest first. */
+export const listOrders = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = listOrdersSchema.safeParse(req.query);
+  if (!parsed.success) throw new ApiError(400, "Invalid query", parsed.error.issues.map((i) => ({ field: i.path.join("."), message: i.message })));
+  const { status, symbol, limit, before } = parsed.data;
+  const orders = await withCursor(() =>
+    orderRepository.listOrders(req.user!.userId, { status, symbol: normalizeSymbol(symbol), limit, before }),
+  );
+  return res.status(200).json(new ApiReponse(true, orders, "Orders fetched", 200));
+});
+
+/** GET /:orderId — one order with its fills. */
+export const getOrder = asyncHandler(async (req: Request, res: Response) => {
+  const order = await orderRepository.getOrder(req.user!.userId, String(req.params.orderId));
+  if (!order) throw new ApiError(404, "Order not found");
+  return res.status(200).json(new ApiReponse(true, order, "Order fetched", 200));
+});
+
+/** GET /trades?symbol&limit&before — the caller's fills, newest first. */
+export const listTrades = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = listTradesSchema.safeParse(req.query);
+  if (!parsed.success) throw new ApiError(400, "Invalid query", parsed.error.issues.map((i) => ({ field: i.path.join("."), message: i.message })));
+  const { symbol, limit, before } = parsed.data;
+  const trades = await withCursor(() => orderRepository.listTrades(req.user!.userId, { symbol: normalizeSymbol(symbol), limit, before }));
+  return res.status(200).json(new ApiReponse(true, trades, "Trades fetched", 200));
+});
+
+const normalizeSymbol = (symbol?: string) => symbol?.replace(/[-_/]/g, "").toUpperCase();
+
+const withCursor = async <T>(fn: () => Promise<T>) => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof CursorNotFoundError) throw new ApiError(400, error.message);
+    throw error;
+  }
 };

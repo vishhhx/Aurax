@@ -55,6 +55,8 @@ model Deposit {
 
   createdAt DateTime @default(now())
   completedAt DateTime?
+
+  @@index([userId, createdAt])
 }
 
 model Wallet {
@@ -115,6 +117,7 @@ model Ledger {
   @@index([userId])
   @@index([assetId])
   @@index([referenceId])
+  @@index([userId, createdAt])
 }
 
 model Market {
@@ -199,6 +202,7 @@ model Order {
   @@index([symbol])
   @@index([userId, status])
   @@index([marketId, status])
+  @@index([userId, createdAt])
 }
 
 model Trade {
@@ -230,6 +234,8 @@ model Trade {
   @@index([userId])
   @@index([marketId])
   @@index([symbol])
+  @@index([executionId])
+  @@index([userId, createdAt])
 }
 
 
@@ -268,10 +274,57 @@ model Candle {
   baseVolume  Decimal  @db.Decimal(38, 18)
   quoteVolume Decimal  @db.Decimal(38, 18)
 
+  // Number of trades folded into this candle. Monotonic per candle, so the
+  // market-service persistence upsert uses it to reject stale revisions.
+  tradeCount  Int      @default(0)
+
   updatedAt   DateTime @updatedAt
 
   @@unique([symbol, interval, openTime])
   @@index([symbol, interval, openTime(sort: Desc)])
+}
+
+
+// Public market-data record of each matching-engine execution, written by
+// market-service. One row per engine trade (the per-user `Trade` table has a
+// maker and a taker row per execution). Source of truth for public trade
+// history and for rebuilding tickers/candles after a restart.
+model MarketTrade {
+  // Engine execution ID (`trade.executed.tradeId`)
+  tradeId     String    @id
+  symbol      String
+
+  price       Decimal   @db.Decimal(38, 18)
+  quantity    Decimal   @db.Decimal(38, 18)
+  quoteAmount Decimal   @db.Decimal(38, 18)
+
+  // Taker (aggressor) side
+  side        OrderSide
+
+  // Engine execution time, Unix ms
+  executedAt  BigInt
+
+  createdAt   DateTime  @default(now())
+
+  @@index([symbol, executedAt(sort: Desc), tradeId(sort: Desc)])
+}
+
+
+// Transactional outbox: rows are written in the same DB transaction as the
+// state change they describe and published to Kafka by a relay afterwards, so
+// an event is never emitted for an uncommitted change and never lost after a
+// commit (at-least-once; consumers deduplicate by event ID).
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  topic       String
+  key         String
+  payload     Json
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
 }
 
 

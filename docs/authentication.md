@@ -1,5 +1,8 @@
 # Authentication
 
+> **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
+> The current, code-verified contract is [authentication.md](frontend-integration/authentication.md).
+
 ## Overview
 
 Aurax uses JWT-based authentication for protected API access and socket connections.

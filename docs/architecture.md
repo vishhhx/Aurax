@@ -1,5 +1,8 @@
 # Architecture
 
+> **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
+> The current, code-verified contract is [architecture.md](frontend-integration/architecture.md).
+
 ## Overview
 
 Aurax uses a modular backend architecture with separate services for authentication, wallet operations, and real-time communication.

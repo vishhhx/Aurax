@@ -2,7 +2,6 @@
   "name": "@repo/api-gateway",
   "dependencies": {
     "@repo/logger": "*",
-    "@repo/redis": "*",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -14,8 +13,9 @@
   },
   "scripts": {
     "dev": "bun run --watch src/server.ts",
-    "build": "tsc",
-    "start": "bun run dist/server.js"
+    "start": "bun src/server.ts",
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

@@ -12,21 +12,10 @@ export class AuthService {
   }
 
   async register(data: AuthPayload): Promise<IAuth> {
-    let user;
-    if (data.provider === "local" && data.password) {
-      const passwordHash = await hashPassword(data.password);
-
-      await this.authRepository.createUser({
-        ...data,
-        password: passwordHash,
-      });
-    }
-
-    user = await this.authRepository.createUser({
-      ...data,
-    });
-
-    return user;
+    // Local accounts store only the password hash; OAuth accounts have none.
+    const password =
+      data.provider === "local" && data.password ? await hashPassword(data.password) : undefined;
+    return this.authRepository.createUser({ ...data, password });
   }
 
   async login(email: string, password: string) {

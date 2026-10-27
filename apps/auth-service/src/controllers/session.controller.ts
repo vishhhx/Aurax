@@ -9,9 +9,9 @@ import {
 
 import { ENV } from "../config/env";
 import { HttpStatus } from "../utils/httpStatus";
-import { getSessionToken } from "../services/sessions";
+import { deleteSessionToken, getSessionToken } from "../services/sessions";
 import { AuthRepository } from "../repositories/auth.repositories";
-import { issueAuthTokens, setAuthCookies } from "../utils/auth-tokens";
+import { clearAuthCookies, issueAuthTokens, setAuthCookies } from "../utils/auth-tokens";
 
 export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -64,6 +64,28 @@ export const refreshTokenController = asyncHandler(
         "Token refreshed successfully.",
         HttpStatus.OK,
       ),
+    );
+  },
+);
+
+export const logoutController = asyncHandler(
+  async (req: Request, res: Response) => {
+    // Idempotent: a missing, expired or already revoked session still logs out.
+    const refreshToken = extractBearerToken(req) ?? req.cookies?.refreshToken;
+
+    if (refreshToken) {
+      let valid = true;
+      try {
+        verifyToken(refreshToken, ENV.JWT_REFRESH_SECRET!);
+      } catch {
+        valid = false;
+      }
+      // Only genuine refresh tokens can address a session key.
+      if (valid) await deleteSessionToken(refreshToken);
+    }
+
+    return clearAuthCookies(res.status(HttpStatus.OK)).json(
+      new ApiReponse(true, null, "Logged out.", HttpStatus.OK),
     );
   },
 );

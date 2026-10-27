@@ -26,7 +26,7 @@ export const GetOrderBook = (
       return;
     }
 
-    const mode = engine.getMode();
+    const mode = engine.getEngineStatus();
 
     if (mode !== EngineMode.LIVE) {
       callback({
@@ -36,14 +36,14 @@ export const GetOrderBook = (
       return;
     }
 
-    const orderBook = engine.getOrderBook(symbol);
-    const snapshot = orderBook.getSnapshot();
+    // Read synchronously (single-threaded): levels and sequence are consistent.
+    const book = engine.getFormattedBook(symbol);
 
     callback(null, {
-      symbol: snapshot.symbol,
+      symbol,
       sequenceNumber: engine.getSequenceNumber(symbol).toString(),
-      bids: snapshot.bids,
-      asks: snapshot.asks,
+      bids: book.bids,
+      asks: book.asks,
     });
   } catch (error) {
     const notFound =

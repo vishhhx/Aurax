@@ -1,16 +1,29 @@
+import type { Metadata } from "next"
 import { Geist_Mono, Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ReduxProvider } from "@/components/providers"
+import { Toaster } from "@/components/ui/sonner"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { SocketProvider } from "@/context/socketProvider"
+import { AccountEventsBridge } from "@/components/account-events-bridge"
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 
 const fontMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
+  variable: "--font-geist-mono",
 })
+
+export const metadata: Metadata = {
+  title: {
+    default: "Aurax Exchange | Buy, sell & trade crypto",
+    template: "%s | Aurax Exchange",
+  },
+  description:
+    "Aurax is a centralized crypto exchange with instant INR deposits, deep order books and a microsecond matching engine.",
+}
 
 export default function RootLayout({
   children,
@@ -31,7 +44,11 @@ export default function RootLayout({
       <body>
         <ReduxProvider>
           <SocketProvider>
-            <ThemeProvider>{children}</ThemeProvider>
+            <AccountEventsBridge />
+            <ThemeProvider defaultTheme="dark">
+              <TooltipProvider>{children}</TooltipProvider>
+              <Toaster richColors position="top-center" />
+            </ThemeProvider>
           </SocketProvider>
         </ReduxProvider>
       </body>

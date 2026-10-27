@@ -1,5 +1,8 @@
 # Wallet API
 
+> **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
+> The current, code-verified contract is [http-api.md](../frontend-integration/http-api.md#wallet-apiv1wallet-access-token).
+
 ## Overview
 
 The Wallet Service manages deposits, withdrawals, balances, assets, and payment integrations.

@@ -1,110 +1,148 @@
-import type { PriceLevel } from "../types/orderbook";
+import { compareScaled, toScaled } from "../lib/decimal";
 
-export interface OrderBookState {
+export interface PriceLevel {
+  /** Canonical decimal string */
+  price: string;
+  /** Canonical decimal string */
+  quantity: string;
+}
+
+export interface OrderBookSnapshot {
   symbol: string;
-  sequenceNumber: number;
+  /** Matching-engine book sequence number */
+  sequenceNumber: bigint;
+  /** Best first: bids descending, asks ascending */
   bids: PriceLevel[];
   asks: PriceLevel[];
+  /** When this snapshot was applied locally (Unix ms) */
+  updatedAt: number;
 }
 
-export class MarketOrderBook {
-  private state: OrderBookState;
+export type ApplyResult =
+  | { status: "applied"; gap: bigint }
+  /** Older or equal sequence from an older-or-equal Kafka offset: a redelivery. */
+  | { status: "stale" }
+  /**
+   * Older or equal sequence from a NEWER Kafka offset. Either the engine
+   * restarted and its book sequence moved backwards, or the producer reordered
+   * a retried batch. Only the engine can say which, so the caller must resync
+   * from the authoritative gRPC snapshot.
+   */
+  | { status: "regressed" };
 
-  constructor(symbol: string) {
-    this.state = {
-      symbol,
-      sequenceNumber: 0,
-      bids: [],
-      asks: [],
-    };
+interface BookState {
+  snapshot: OrderBookSnapshot;
+  /** Offset of the last Kafka message applied, null if the state came from gRPC only. */
+  lastOffset: bigint | null;
+}
+
+function sortLevels(levels: PriceLevel[], side: "bids" | "asks"): PriceLevel[] {
+  const keyed = levels.map((level) => ({ level, price: toScaled(level.price) }));
+  keyed.sort((a, b) =>
+    side === "bids" ? compareScaled(b.price, a.price) : compareScaled(a.price, b.price),
+  );
+
+  for (let i = 1; i < keyed.length; i++) {
+    if (keyed[i]!.price === keyed[i - 1]!.price) {
+      throw new Error(`Duplicate ${side} price level ${keyed[i]!.level.price}`);
+    }
   }
 
-  public initialize(snapshot: OrderBookState): void {
-    if (snapshot.symbol !== this.state.symbol) {
-      throw new Error("Snapshot symbol mismatch");
+  return keyed.map((k) => ({ price: k.level.price, quantity: k.level.quantity }));
+}
+
+/**
+ * The single authoritative in-memory order-book store. Initialisation (gRPC),
+ * the Kafka consumer, REST controllers and depth publishing all read and
+ * write this instance.
+ */
+export class OrderBookStore {
+  private readonly books = new Map<string, BookState>();
+
+  /** Validates ordering, rejects crossed books, and returns a normalised snapshot. */
+  static build(input: {
+    symbol: string;
+    sequenceNumber: bigint;
+    bids: PriceLevel[];
+    asks: PriceLevel[];
+  }): OrderBookSnapshot {
+    const bids = sortLevels(input.bids, "bids");
+    const asks = sortLevels(input.asks, "asks");
+    const bestBid = bids[0];
+    const bestAsk = asks[0];
+
+    if (bestBid && bestAsk && toScaled(bestBid.price) >= toScaled(bestAsk.price)) {
+      throw new Error(
+        `Crossed book for ${input.symbol}: bid ${bestBid.price} >= ask ${bestAsk.price}`,
+      );
     }
 
-    this.state = {
-      ...snapshot,
-      bids: [...snapshot.bids],
-      asks: [...snapshot.asks],
-    };
-  }
-
-  public update(snapshot: OrderBookState): boolean {
-    if (snapshot.symbol !== this.state.symbol) {
-      throw new Error("Order book symbol mismatch");
-    }
-
-    if (snapshot.sequenceNumber <= this.state.sequenceNumber) {
-      return false;
-    }
-
-    this.state = {
-      ...snapshot,
-      bids: [...snapshot.bids],
-      asks: [...snapshot.asks],
-    };
-
-    return true;
-  }
-
-  public getSnapshot(): OrderBookState {
     return {
-      ...this.state,
-      bids: [...this.state.bids],
-      asks: [...this.state.asks],
+      symbol: input.symbol,
+      sequenceNumber: input.sequenceNumber,
+      bids,
+      asks,
+      updatedAt: Date.now(),
     };
   }
 
-  public getSequenceNumber(): number {
-    return this.state.sequenceNumber;
-  }
-}
-
-export class MarketOrderBookStore {
-  private readonly orderBooks = new Map<string, MarketOrderBook>();
-
-  public get(symbol: string): MarketOrderBook | undefined {
-    return this.orderBooks.get(symbol);
+  has(symbol: string): boolean {
+    return this.books.has(symbol);
   }
 
-  public getOrCreate(symbol: string): MarketOrderBook {
-    let orderBook = this.orderBooks.get(symbol);
+  symbols(): string[] {
+    return [...this.books.keys()];
+  }
 
-    if (!orderBook) {
-      orderBook = new MarketOrderBook(symbol);
-      this.orderBooks.set(symbol, orderBook);
+  /** Unconditionally installs an authoritative (gRPC) snapshot. */
+  replace(snapshot: OrderBookSnapshot, kafkaOffset: bigint | null = null): void {
+    const current = this.books.get(snapshot.symbol);
+    this.books.set(snapshot.symbol, {
+      snapshot,
+      lastOffset: kafkaOffset ?? current?.lastOffset ?? null,
+    });
+  }
+
+  /** Applies a full snapshot received from Kafka at `offset`. */
+  applyKafkaSnapshot(snapshot: OrderBookSnapshot, offset: bigint): ApplyResult {
+    const current = this.books.get(snapshot.symbol);
+
+    if (!current) {
+      this.books.set(snapshot.symbol, { snapshot, lastOffset: offset });
+      return { status: "applied", gap: 0n };
     }
 
-    return orderBook;
+    const currentSeq = current.snapshot.sequenceNumber;
+
+    if (snapshot.sequenceNumber > currentSeq) {
+      this.books.set(snapshot.symbol, { snapshot, lastOffset: offset });
+      return { status: "applied", gap: snapshot.sequenceNumber - currentSeq - 1n };
+    }
+
+    if (current.lastOffset !== null && offset > current.lastOffset) {
+      return { status: "regressed" };
+    }
+
+    return { status: "stale" };
   }
 
-  public initialize(snapshot: OrderBookState): void {
-    this.getOrCreate(snapshot.symbol).initialize(snapshot);
+  get(symbol: string): OrderBookSnapshot | undefined {
+    return this.books.get(symbol)?.snapshot;
   }
 
-  public update(snapshot: OrderBookState): boolean {
-    return this.getOrCreate(snapshot.symbol).update(snapshot);
+  getDepth(symbol: string, limit: number): OrderBookSnapshot | undefined {
+    const snapshot = this.get(symbol);
+    if (!snapshot) return undefined;
+    return {
+      ...snapshot,
+      bids: snapshot.bids.slice(0, limit),
+      asks: snapshot.asks.slice(0, limit),
+    };
   }
 
-  public getSnapshot(symbol: string): OrderBookState | undefined {
-    return this.orderBooks.get(symbol)?.getSnapshot();
-  }
-
-  public getAllSnapshots(): OrderBookState[] {
-    return Array.from(this.orderBooks.values(), (orderBook) =>
-      orderBook.getSnapshot(),
-    );
-  }
-
-  public delete(symbol: string): boolean {
-    return this.orderBooks.delete(symbol);
-  }
-
-  public clear(): void {
-    this.orderBooks.clear();
+  clear(): void {
+    this.books.clear();
   }
 }
 
-export const marketOrderBookStore = new MarketOrderBookStore();
+export const orderBookStore = new OrderBookStore();

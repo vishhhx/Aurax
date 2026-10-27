@@ -51,6 +51,8 @@ export class RecoveryManager {
       snapshot.orderSequenceNumber,
     );
 
+    this.engine.restoreRecentCommands(symbol, snapshot.recentCommandIds ?? []);
+
     console.log(
       `[Recovery] Restored ${symbol} from partition ${snapshot.kafka.partition}, offset ${snapshot.kafka.offset}`,
     );

@@ -14,7 +14,7 @@ export const GetEngineStatus = async (
   callback: grpc.sendUnaryData<GetEngineStatusResponse>,
 ): Promise<void> => {
   try {
-    const mode = engine.getMode();
+    const mode = engine.getEngineStatus();
     const isReady = mode === "LIVE";
 
     callback(null, {

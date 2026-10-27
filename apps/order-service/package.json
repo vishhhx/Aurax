@@ -2,11 +2,14 @@
   "name": "@repo/order-service",
   "scripts": {
     "dev": "bun run --watch src/server.ts",
-    "build": "tsc",
-    "start": "bun run dist/server.js"
+    "start": "bun src/server.ts",
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
+    "test": "bun test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "socket.io-client": "^4.8.3"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -14,12 +17,10 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.14.4",
     "@repo/core": "*",
-    "@repo/database": "*",
     "@repo/grpc": "*",
     "@repo/kafka": "*",
     "@repo/logger": "*",
     "@repo/pg": "*",
-    "@repo/redis": "*",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "axios": "^1.19.0",

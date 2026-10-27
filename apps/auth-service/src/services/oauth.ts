@@ -7,7 +7,6 @@ import {
   GoogleOAuthResponse,
   oAuthUser,
 } from "../types/auth";
-import { RedisString } from "@repo/redis";
 import { ApiError } from "@repo/core/rest";
 
 const SCOPES = ["openid", "email", "profile"];
@@ -23,12 +22,13 @@ export class googleOauthService {
     );
   }
 
-  generateGoogleAuthUrl(): string {
+  generateGoogleAuthUrl(state: string): string {
     return this.oauth2Client.generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
       include_granted_scopes: true,
       scope: SCOPES,
+      state,
     });
   }
 
@@ -92,41 +92,22 @@ export class googleOauthService {
   }
 }
 export class GithubOauthService {
-  async generateGithubAuthUrl(): Promise<GithubAuthResponse> {
-    try {
-      const state = crypto.randomUUID();
-      const params = new URLSearchParams({
-        client_id: ENV.GITHUB_CLIENT_ID!,
-        redirect_uri: ENV.GITHUB_REDIRECT_URI!,
-        scope: "read:user user:email",
-        state,
-      });
-
-      const redisString = new RedisString();
-      await redisString.set(`oauth:github:${state}`, state, { EX: 300 });
-      return {
-        url: `https://github.com/login/oauth/authorize?${params.toString()}`,
-        state,
-      };
-    } catch (error) {
-      console.error("Failed to generate GitHub OAuth URL:", error);
-      throw new ApiError(500, "Unable to generate GitHub authorization URL.");
-    }
+  generateGithubAuthUrl(state: string): GithubAuthResponse {
+    const params = new URLSearchParams({
+      client_id: ENV.GITHUB_CLIENT_ID!,
+      redirect_uri: ENV.GITHUB_REDIRECT_URI!,
+      scope: "read:user user:email",
+      state,
+    });
+    return {
+      url: `https://github.com/login/oauth/authorize?${params.toString()}`,
+      state,
+    };
   }
 
-  async githubCallback(code: string, state: string): Promise<oAuthUser> {
+  /** The caller has already validated `state` (utils/oauth-state.ts). */
+  async githubCallback(code: string): Promise<oAuthUser> {
     try {
-
-      const redisString = new RedisString();
-
-      const storedState = await redisString.get(`oauth:github:${state}`);
-
-      if (!storedState) {
-        throw new ApiError(400, "Invalid or expired OAuth state.");
-      }
-
-      await redisString.delete(`oauth:github:${state}`);
-
       const params = new URLSearchParams({
         client_id: ENV.GITHUB_CLIENT_ID!,
         client_secret: ENV.GITHUB_CLIENT_SECRET!,

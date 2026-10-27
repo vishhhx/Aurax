@@ -16,7 +16,7 @@ function Field({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="field"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("group/field flex flex-col gap-2", className)}
       {...props}
     />
   )
@@ -26,7 +26,10 @@ function FieldLabel({ className, ...props }: React.ComponentProps<"label">) {
   return (
     <label
       data-slot="field-label"
-      className={cn("text-sm font-medium", className)}
+      className={cn(
+        "text-sm font-medium group-data-[invalid=true]/field:text-destructive",
+        className
+      )}
       {...props}
     />
   )
@@ -42,4 +45,15 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
   )
 }
 
-export { Field, FieldDescription, FieldGroup, FieldLabel }
+function FieldError({ className, ...props }: React.ComponentProps<"p">) {
+  return (
+    <p
+      data-slot="field-error"
+      role="alert"
+      className={cn("text-sm font-medium text-destructive", className)}
+      {...props}
+    />
+  )
+}
+
+export { Field, FieldDescription, FieldError, FieldGroup, FieldLabel }

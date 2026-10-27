@@ -1,5 +1,8 @@
 # Error Responses
 
+> **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
+> The current, code-verified contract is [http-api.md](../frontend-integration/http-api.md#conventions).
+
 All APIs follow a consistent error format.
 
 ```json

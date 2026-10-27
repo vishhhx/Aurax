@@ -25,8 +25,9 @@ export const getAssetsAndWalletDetails = asyncHandler(
       const wallet = walletMap.get(asset.assetId);
       return {
         ...asset,
-        availableBalance: wallet ? wallet.availableBalance : 0,
-        lockedBalance: wallet ? wallet.lockedBalance : 0,
+        // Decimal strings, like every other amount in the API.
+        availableBalance: wallet ? wallet.availableBalance.toFixed() : "0",
+        lockedBalance: wallet ? wallet.lockedBalance.toFixed() : "0",
       };
     });
     return res

@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { ApiError } from "@repo/core/rest";
-import { extractBearerToken, verifyToken, UserPayload } from "@repo/core/jwt";
+import { extractBearerToken, verifyToken, type UserPayload } from "@repo/core/jwt";
 import { ENV } from "../config/env";
 
 export const authenticate = (

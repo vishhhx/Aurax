@@ -1,5 +1,8 @@
 # Getting Started
 
+> **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
+> The current, code-verified contract is [frontend-environment.md](frontend-integration/frontend-environment.md#local-stack).
+
 ## Prerequisites
 
 - Node.js 18+

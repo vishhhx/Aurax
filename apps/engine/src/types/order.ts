@@ -71,8 +71,19 @@ export interface OrderSnapshot {
   fills: Fill[];
 }
 
+/** Commands consumed from `order.events` (key = symbol). */
+export interface OrderCancelRequestedEvent {
+  event: "order.cancel_requested";
+  orderId: string;
+  userId: string;
+  symbol: string;
+  requestedAt: string;
+}
+
 export interface OrderBookSnapshot {
   version: number;
+  /** Recently processed command IDs (duplicate-command protection), newest last. v2+ */
+  recentCommandIds?: string[];
   symbol: string;
   sequenceNumber: number;
   orderSequenceNumber: number;

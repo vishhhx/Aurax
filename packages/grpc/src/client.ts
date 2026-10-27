@@ -8,6 +8,12 @@ import type { WalletServiceClient } from "../generated/wallet/WalletService";
 import type { ProtoGrpcType as OrderProtoGrpcType } from "../generated/order";
 import type { MatchingEngineClient } from "../generated/order/MatchingEngine";
 
+/** Reconnect quickly after a peer restart (grpc-js defaults back off up to 120 s). */
+const CHANNEL_OPTIONS = {
+  "grpc.initial_reconnect_backoff_ms": 500,
+  "grpc.max_reconnect_backoff_ms": 5_000,
+};
+
 export enum Contracts {
   Wallet = "wallet",
   Order = "order",
@@ -29,19 +35,13 @@ const CONTRACT_CLIENTS: {
   [Contracts.Wallet]: async (address: string): Promise<WalletServiceClient> => {
     const proto = await loadProto<WalletProtoGrpcType>(Contracts.Wallet);
 
-    return new proto.wallet.WalletService(
-      address,
-      grpc.credentials.createInsecure(),
-    );
+    return new proto.wallet.WalletService(address, grpc.credentials.createInsecure(), CHANNEL_OPTIONS);
   },
 
   [Contracts.Order]: async (address: string): Promise<MatchingEngineClient> => {
     const proto = await loadProto<OrderProtoGrpcType>(Contracts.Order);
 
-    return new proto.order.MatchingEngine(
-      address,
-      grpc.credentials.createInsecure(),
-    );
+    return new proto.order.MatchingEngine(address, grpc.credentials.createInsecure(), CHANNEL_OPTIONS);
   },
 };
 

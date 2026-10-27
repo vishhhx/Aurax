@@ -17,6 +17,8 @@ export interface WalletAsset {
 
 export interface WalletState {
   assets: WalletAsset[]
+  /** Latest applied balance.updated version per assetId */
+  versions: Record<string, number>
   isLoading: boolean
   error: string | null
 }

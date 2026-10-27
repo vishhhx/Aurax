@@ -1,21 +1,35 @@
-export interface RecentTrade {
+export interface PublicTrade {
+  /** Matching-engine execution ID */
   tradeId: string;
   symbol: string;
   price: string;
   quantity: string;
+  quoteQuantity: string;
+  /** Taker (aggressor) side */
+  side: "BUY" | "SELL";
+  /** True when the resting (maker) order was the buy side */
+  isBuyerMaker: boolean;
+  /** Engine execution time, Unix ms */
   timestamp: number;
-  side?: "BUY" | "SELL";
 }
 
+export type RecentTrade = PublicTrade;
+
 interface MarketTrades {
+  /** Newest first, ordered by (timestamp desc, tradeId desc) */
   trades: RecentTrade[];
   tradeIds: Set<string>;
 }
 
+function isNewer(a: RecentTrade, b: RecentTrade): boolean {
+  return a.timestamp > b.timestamp || (a.timestamp === b.timestamp && a.tradeId > b.tradeId);
+}
+
+/** Bounded, deduplicated newest-first trade list per market. */
 export class RecentTradesStore {
   private readonly markets = new Map<string, MarketTrades>();
 
-  constructor(private readonly maxTradesPerMarket = 100) {
+  constructor(readonly maxTradesPerMarket = 100) {
     if (!Number.isInteger(maxTradesPerMarket) || maxTradesPerMarket < 1) {
       throw new Error("maxTradesPerMarket must be a positive integer");
     }
@@ -25,11 +39,7 @@ export class RecentTradesStore {
     let market = this.markets.get(symbol);
 
     if (!market) {
-      market = {
-        trades: [],
-        tradeIds: new Set<string>(),
-      };
-
+      market = { trades: [], tradeIds: new Set<string>() };
       this.markets.set(symbol, market);
     }
 
@@ -43,11 +53,18 @@ export class RecentTradesStore {
       return false;
     }
 
-    const storedTrade = { ...trade };
+    const oldest = market.trades[market.trades.length - 1];
+    if (
+      market.trades.length >= this.maxTradesPerMarket &&
+      oldest &&
+      !isNewer(trade, oldest)
+    ) {
+      // Older than everything retained; it would be evicted immediately.
+      return false;
+    }
 
-    const index = market.trades.findIndex(
-      (existing) => existing.timestamp < storedTrade.timestamp,
-    );
+    const storedTrade = { ...trade };
+    const index = market.trades.findIndex((existing) => isNewer(storedTrade, existing));
 
     if (index === -1) {
       market.trades.push(storedTrade);
@@ -59,10 +76,7 @@ export class RecentTradesStore {
 
     while (market.trades.length > this.maxTradesPerMarket) {
       const removed = market.trades.pop();
-
-      if (removed) {
-        market.tradeIds.delete(removed.tradeId);
-      }
+      if (removed) market.tradeIds.delete(removed.tradeId);
     }
 
     return true;
@@ -84,12 +98,7 @@ export class RecentTradesStore {
 
   public getLatestTrade(symbol: string): RecentTrade | undefined {
     const trade = this.markets.get(symbol)?.trades[0];
-
     return trade ? { ...trade } : undefined;
-  }
-
-  public getMarketSymbols(): string[] {
-    return Array.from(this.markets.keys());
   }
 
   public clearMarket(symbol: string): boolean {
@@ -100,5 +109,3 @@ export class RecentTradesStore {
     this.markets.clear();
   }
 }
-
-export const recentTradesStore = new RecentTradesStore(100);

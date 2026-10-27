@@ -1,292 +1,215 @@
 import type { Request, Response } from "express";
+import { ApiError, ApiReponse, asyncHandler } from "@repo/core/rest";
 
-import { ApiReponse, asyncHandler } from "@repo/core/rest";
+import { ENV } from "../config/env";
+import { metrics } from "../lib/metrics";
+import { health } from "../health";
+import { marketRegistry } from "../market/registry";
+import { candleAggregator, orderBookStore, tickerStore } from "../market/state";
+import { CANDLE_INTERVALS, isCandleInterval, type Candle } from "../processors/candle";
+import { listCandles } from "../repositories/candles";
+import type { TickerState } from "../store/ticker";
+import { parseLimit, parseRange, requireSymbol } from "./params";
 
-import { marketRepo } from "../repositories/market";
-import { marketsStore } from "../store/markets";
-import { tickerStore } from "../store/ticker";
+const DEPTH_DEFAULT = 20;
+const DEPTH_MAX = 500;
+const CANDLES_DEFAULT = 500;
+const CANDLES_MAX = 1_000;
 
-const getSymbol = (req: Request): string | undefined => {
-  const symbol = req.params.symbol;
-  return typeof symbol === "string" && symbol.length > 0 ? symbol : undefined;
+function serializeTicker(t: TickerState) {
+  return {
+    symbol: t.symbol,
+    lastPrice: t.lastPrice,
+    openPrice: t.open24h,
+    highPrice: t.high24h,
+    lowPrice: t.low24h,
+    priceChange: t.priceChange24h,
+    priceChangePercent: t.priceChangePercent24h,
+    volume: t.baseVolume24h,
+    quoteVolume: t.quoteVolume24h,
+    tradeCount: t.tradeCount24h,
+    lastTradeTimestamp: t.lastTradeTimestamp,
+    windowStart: t.windowStart,
+    sequenceNumber: t.sequenceNumber.toString(),
+    updatedAt: t.updatedAt,
+  };
+}
+
+function tickerOr503(symbol: string): TickerState {
+  const ticker = tickerStore.getTicker(symbol);
+  if (!ticker) throw new ApiError(503, `Ticker for ${symbol} is not initialised yet`);
+  return ticker;
+}
+
+function bookOr503(symbol: string) {
+  const book = orderBookStore.get(symbol);
+  if (!book) throw new ApiError(503, `Order book for ${symbol} is not available yet`);
+  return book;
+}
+
+// ─── Health & metrics (not readiness-gated) ──────────────────────────────
+
+export const liveness = (_req: Request, res: Response) => {
+  res.status(200).json(new ApiReponse(true, { status: "live" }, "Service is live"));
 };
 
-export const healthCheck = () =>
-  asyncHandler(async (_req: Request, res: Response) => {
-    return res.status(200).json(new ApiReponse(true, "Route is healthy"));
-  });
+export const readiness = (_req: Request, res: Response) => {
+  const snapshot = health.snapshot();
+  res
+    .status(snapshot.ready ? 200 : 503)
+    .json(new ApiReponse(snapshot.ready, snapshot, snapshot.ready ? "Service is ready" : "Service is not ready"));
+};
 
-export const ListALlMarkets = asyncHandler(
-  async (_req: Request, res: Response) => {
-    const markets = await marketRepo.listmarkets();
+export const metricsEndpoint = (_req: Request, res: Response) => {
+  res.type("text/plain; version=0.0.4").send(metrics.render());
+};
 
-    return res
-      .status(200)
-      .json(new ApiReponse(true, markets, "Successfully fetched all markets"));
-  },
-);
+// ─── Markets ─────────────────────────────────────────────────────────────
 
-export const GetMarketBySymbol = asyncHandler(
-  async (req: Request, res: Response) => {
-    const symbol = String(req.params.symbol ?? "");
+export const listMarkets = asyncHandler(async (_req, res) => {
+  res.status(200).json(new ApiReponse(true, marketRegistry.list(), "Markets fetched successfully"));
+});
 
-    if (!symbol) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, "Market symbol is required"));
-    }
+export const getMarket = asyncHandler(async (req, res) => {
+  const symbol = requireSymbol(req);
+  res.status(200).json(new ApiReponse(true, marketRegistry.get(symbol), "Market fetched successfully"));
+});
 
-    const market = await marketRepo.getMarketBySymbol(symbol);
+/** Trading status from Postgres plus local data availability. */
+export const getMarketStatus = asyncHandler(async (req, res) => {
+  const symbol = requireSymbol(req);
+  const market = marketRegistry.get(symbol)!;
+  const book = orderBookStore.get(symbol);
+  const ticker = tickerStore.getTicker(symbol);
 
-    if (!market) {
-      return res.status(404).json(new ApiReponse(false, "Market not found"));
-    }
+  res.status(200).json(
+    new ApiReponse(
+      true,
+      {
+        symbol,
+        status: market.status,
+        orderBookSequenceNumber: book ? book.sequenceNumber.toString() : null,
+        orderBookUpdatedAt: book?.updatedAt ?? null,
+        lastTradeTimestamp: ticker?.lastTradeTimestamp ?? null,
+      },
+      "Market status fetched successfully",
+    ),
+  );
+});
 
-    const isRegistered = marketsStore.hasMarket(symbol);
+// ─── Order book ──────────────────────────────────────────────────────────
 
-    const orderBook = isRegistered ? marketsStore.getSnapshot(symbol) : null;
+/**
+ * `?view=published` returns exactly the top-N view that depth.updated deltas
+ * describe (N = DEPTH_PUBLISH_LEVELS, echoed as `depth`), so a consumer can
+ * resync without knowing N in advance.
+ */
+export const getOrderBookDepth = asyncHandler(async (req, res) => {
+  const symbol = requireSymbol(req);
+  const published = req.query.view === "published";
+  const limit = published ? ENV.DEPTH_PUBLISH_LEVELS : parseLimit(req.query.limit, { def: DEPTH_DEFAULT, max: DEPTH_MAX });
+  const book = bookOr503(symbol);
 
-    return res.status(200).json(
-      new ApiReponse(
-        true,
-        {
-          market,
-          orderBook,
-        },
-        "Successfully fetched market",
-      ),
-    );
-  },
-);
+  res.status(200).json(
+    new ApiReponse(
+      true,
+      {
+        symbol,
+        sequenceNumber: book.sequenceNumber.toString(),
+        bids: book.bids.slice(0, limit),
+        asks: book.asks.slice(0, limit),
+        depth: limit,
+        updatedAt: book.updatedAt,
+      },
+      "Order book depth fetched successfully",
+    ),
+  );
+});
 
-export const GetAllTickers = asyncHandler(
-  async (_req: Request, res: Response) => {
-    const tickers = tickerStore.getAllTickers();
+export const getBookTicker = asyncHandler(async (req, res) => {
+  const symbol = requireSymbol(req);
+  const book = bookOr503(symbol);
+  const bid = book.bids[0];
+  const ask = book.asks[0];
 
-    return res
-      .status(200)
-      .json(new ApiReponse(true, tickers, "Successfully fetched all tickers"));
-  },
-);
+  res.status(200).json(
+    new ApiReponse(
+      true,
+      {
+        symbol,
+        bidPrice: bid?.price ?? null,
+        bidQuantity: bid?.quantity ?? null,
+        askPrice: ask?.price ?? null,
+        askQuantity: ask?.quantity ?? null,
+        sequenceNumber: book.sequenceNumber.toString(),
+      },
+      "Best bid and ask fetched successfully",
+    ),
+  );
+});
 
-export const GetTickerBySymbol = asyncHandler(
-  async (req: Request, res: Response) => {
-    const symbol = String(req.params.symbol ?? "");
+// ─── Tickers & price ─────────────────────────────────────────────────────
 
-    if (!symbol) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, "Market symbol is required"));
-    }
+export const listTickers = asyncHandler(async (_req, res) => {
+  const tickers = marketRegistry
+    .symbols()
+    .flatMap((s) => {
+      const t = tickerStore.getTicker(s);
+      return t ? [serializeTicker(t)] : [];
+    });
+  res.status(200).json(new ApiReponse(true, tickers, "Tickers fetched successfully"));
+});
 
-    const ticker = tickerStore.getTicker(symbol);
+export const getTicker = asyncHandler(async (req, res) => {
+  const symbol = requireSymbol(req);
+  res.status(200).json(new ApiReponse(true, serializeTicker(tickerOr503(symbol)), "24-hour ticker fetched successfully"));
+});
 
-    if (!ticker) {
-      return res.status(404).json(new ApiReponse(false, "Ticker not found"));
-    }
+export const getPrice = asyncHandler(async (req, res) => {
+  const symbol = requireSymbol(req);
+  const ticker = tickerOr503(symbol);
 
-    return res
-      .status(200)
-      .json(new ApiReponse(true, ticker, "Successfully fetched ticker"));
-  },
-);
+  res.status(200).json(
+    new ApiReponse(
+      true,
+      { symbol, price: ticker.lastPrice, timestamp: ticker.lastTradeTimestamp },
+      ticker.lastPrice === null ? "No trade has executed in this market yet" : "Market price fetched successfully",
+    ),
+  );
+});
 
-export const Get24HourTicker = asyncHandler(
-  async (req: Request, res: Response) => {
-    const symbol = getSymbol(req);
+// ─── Candles ─────────────────────────────────────────────────────────────
 
-    if (!symbol) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, "Market symbol is required"));
-    }
+/**
+ * Oldest-first candles. Persisted candles come from Postgres; anything still
+ * in memory (current and recent periods, including unpersisted revisions)
+ * overrides the stored row for the same openTime.
+ */
+export const getCandles = asyncHandler(async (req, res) => {
+  const symbol = requireSymbol(req);
+  const interval = req.query.interval;
 
-    const ticker = tickerStore.getTicker(symbol);
+  if (!isCandleInterval(interval)) {
+    throw new ApiError(400, "Invalid interval", [`interval must be one of ${Object.keys(CANDLE_INTERVALS).join(", ")}`]);
+  }
 
-    if (!ticker) {
-      return res.status(404).json(new ApiReponse(false, "Ticker not found"));
-    }
+  const limit = parseLimit(req.query.limit, { def: CANDLES_DEFAULT, max: CANDLES_MAX });
+  const { startTime, endTime } = parseRange(req.query);
 
-    return res.status(200).json(
-      new ApiReponse(
-        true,
-        {
-          symbol: ticker.symbol,
-          lastPrice: ticker.lastPrice,
-          openPrice: ticker.open24h,
-          highPrice: ticker.high24h,
-          lowPrice: ticker.low24h,
-          priceChange: ticker.priceChange24h,
-          priceChangePercent: ticker.priceChangePercent24h,
-          volume: ticker.baseVolume24h,
-          quoteVolume: ticker.quoteVolume24h,
-          lastTradeTimestamp: ticker.lastTradeTimestamp,
-          updatedAt: ticker.updatedAt,
-        },
-        "24-hour ticker fetched successfully",
-      ),
-    );
-  },
-);
+  const memory = candleAggregator.getCandles(symbol, interval, { limit, startTime, endTime });
+  const stored = await listCandles({ symbol, interval, limit, startTime, endTime });
 
-export const GetMarketStatus = asyncHandler(
-  async (req: Request, res: Response) => {
-    const symbol = getSymbol(req);
+  const merged = new Map<number, Candle>();
+  for (const c of stored) merged.set(c.openTime, c);
+  for (const c of memory) merged.set(c.openTime, c);
 
-    if (!symbol) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, "Market symbol is required"));
-    }
+  const candles = [...merged.values()].sort((a, b) => a.openTime - b.openTime).slice(-limit);
 
-    const registered = marketsStore.hasMarket(symbol);
-    const ticker = tickerStore.getTicker(symbol);
-
-    if (!registered && !ticker) {
-      return res.status(404).json(new ApiReponse(false, "Market not found"));
-    }
-
-    const orderBook = registered ? marketsStore.getSnapshot(symbol) : null;
-
-    return res.status(200).json(
-      new ApiReponse(
-        true,
-        {
-          symbol,
-          registered,
-          orderBookAvailable: orderBook !== null,
-          tickerAvailable: ticker !== undefined,
-          orderBookSequenceNumber: orderBook?.sequenceNumber ?? null,
-        },
-        "Market service status fetched successfully",
-      ),
-    );
-  },
-);
-
-export const GetMarketPrice = asyncHandler(
-  async (req: Request, res: Response) => {
-    const symbol = getSymbol(req);
-
-    if (!symbol) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, "Market symbol is required"));
-    }
-
-    const ticker = tickerStore.getTicker(symbol);
-
-    if (!ticker) {
-      return res.status(404).json(new ApiReponse(false, "Ticker not found"));
-    }
-
-    if (ticker.lastPrice === null) {
-      return res
-        .status(404)
-        .json(new ApiReponse(false, "No executed trade price available"));
-    }
-
-    return res.status(200).json(
-      new ApiReponse(
-        true,
-        {
-          symbol: ticker.symbol,
-          price: ticker.lastPrice,
-          timestamp: ticker.lastTradeTimestamp,
-        },
-        "Market price fetched successfully",
-      ),
-    );
-  },
-);
-
-export const GetBookTicker = asyncHandler(
-  async (req: Request, res: Response) => {
-    const symbol = getSymbol(req);
-
-    if (!symbol) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, "Market symbol is required"));
-    }
-
-    if (!marketsStore.hasMarket(symbol)) {
-      return res
-        .status(404)
-        .json(new ApiReponse(false, "Market order book not found"));
-    }
-
-    const orderBook = marketsStore.getSnapshot(symbol);
-
-    const bestBid = orderBook.bids[0];
-    const bestAsk = orderBook.asks[0];
-
-    return res.status(200).json(
-      new ApiReponse(
-        true,
-        {
-          symbol,
-          bidPrice: bestBid?.price ?? null,
-          bidQuantity: bestBid?.quantity ?? null,
-          askPrice: bestAsk?.price ?? null,
-          askQuantity: bestAsk?.quantity ?? null,
-          sequenceNumber: orderBook.sequenceNumber,
-        },
-        "Best bid and ask fetched successfully",
-      ),
-    );
-  },
-);
-
-export const GetOrderBookDepth = asyncHandler(
-  async (req: Request, res: Response) => {
-    const symbol = String(req.params.symbol ?? "");
-
-    if (!symbol) {
-      return res
-        .status(400)
-        .json(new ApiReponse(false, "Market symbol is required"));
-    }
-
-    const rawLimit = req.query.limit;
-    const limit =
-      typeof rawLimit === "undefined"
-        ? 20
-        : Number(Array.isArray(rawLimit) ? rawLimit[0] : rawLimit);
-
-    if (
-      typeof rawLimit !== "undefined" &&
-      (!Number.isInteger(limit) || limit < 1 || limit > 100)
-    ) {
-      return res
-        .status(400)
-        .json(
-          new ApiReponse(false, "Limit must be an integer between 1 and 100"),
-        );
-    }
-
-    if (!marketsStore.hasMarket(symbol)) {
-      return res
-        .status(404)
-        .json(new ApiReponse(false, "Market order book not found"));
-    }
-
-    const snapshot = marketsStore.getSnapshot(symbol);
-
-    const bids = snapshot.bids.slice(0, limit);
-    const asks = snapshot.asks.slice(0, limit);
-
-    return res.status(200).json(
-      new ApiReponse(
-        true,
-        {
-          symbol: snapshot.symbol,
-          sequenceNumber: snapshot.sequenceNumber,
-          bids,
-          asks,
-        },
-        "Order book depth fetched successfully",
-      ),
-    );
-  },
-);
+  res.status(200).json(
+    new ApiReponse(
+      true,
+      candles.map(({ updatedAt: _u, ...c }) => c),
+      "Candles fetched successfully",
+    ),
+  );
+});

@@ -1,51 +1,36 @@
-import OrderClient from "../grpc/orderbook";
-import { marketsStore } from "../store/markets";
-import { reconstructTickerStates } from "./ticker-initialize";
+import logger from "../config/logger";
+import { matchingEngine } from "../grpc/orderbook";
 
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export const initializeOrderBooks = async (
-  markets: string[],
-): Promise<void> => {
-  while (true) {
+/**
+ * Waits until the matching engine reports LIVE (it only serves order books in
+ * LIVE mode). Backs off from 1s to 10s. `timeoutMs = 0` waits indefinitely;
+ * `signal` aborts the wait during shutdown.
+ */
+export async function waitForEngineReady(timeoutMs: number, signal?: AbortSignal): Promise<void> {
+  const started = Date.now();
+  let delay = 1_000;
+
+  while (!signal?.aborted) {
     try {
-      const status = await OrderClient.getEngineStatus();
-
+      const status = await matchingEngine.getEngineStatus();
       if (status.isReady) {
-        break;
+        logger.info({ status: status.status }, "Matching engine is ready");
+        return;
       }
-
-      console.log(`Matching engine is not ready. Status: ${status.status}`);
+      logger.info({ status: status.status, errorCode: status.errorCode }, "Matching engine not ready yet");
     } catch (error) {
-      console.error("Failed to check matching engine status:", error);
+      logger.warn({ err: error }, "Matching engine status check failed");
     }
 
-    await sleep(2000);
+    if (timeoutMs > 0 && Date.now() - started >= timeoutMs) {
+      throw new Error(`Matching engine was not ready within ${timeoutMs}ms`);
+    }
+
+    await sleep(delay);
+    delay = Math.min(delay * 2, 10_000);
   }
 
-  for (const symbol of markets) {
-    const snapshot = await OrderClient.getOrderBook(symbol);
-
-    marketsStore.initialize({
-      symbol: snapshot.symbol,
-      sequenceNumber: Number(snapshot.sequenceNumber),
-      bids: snapshot.bids.map((level) => ({
-        price: Number(level.price),
-        quantity: Number(level.quantity),
-      })),
-      asks: snapshot.asks.map((level) => ({
-        price: Number(level.price),
-        quantity: Number(level.quantity),
-      })),
-    });
-
-    console.log(
-      `Loaded ${symbol} order book at sequence ${snapshot.sequenceNumber}`,
-    );
-  }
-
-  await reconstructTickerStates(markets);
-
-  console.log("Market order books and ticker states initialized");
-};
+  throw new Error("Aborted while waiting for the matching engine");
+}

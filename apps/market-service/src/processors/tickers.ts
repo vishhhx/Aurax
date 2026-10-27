@@ -1,274 +1,221 @@
-import { tickerStore } from "../store/ticker";
+import { formatScaled, mulScaled, percentChangeScaled, toScaled } from "../lib/decimal";
+import type { TickerState, TickerStore, TickerValues } from "../store/ticker";
+import type { PublicTrade } from "../store/trades";
 
-export interface TradeExecutedEvent {
-  event: "trade.executed";
+/**
+ * Rolling 24-hour ticker.
+ *
+ * Window semantics: a trade is inside the window when
+ * `now - WINDOW_MS < trade.timestamp`, using the engine execution timestamp.
+ * `open24h` is the price of the earliest trade inside the window, ordered by
+ * (timestamp, tradeId). `lastPrice` is the latest trade ever seen, so it stays
+ * available after a quiet 24 hours (the change/volume fields then reset).
+ *
+ * Volumes are maintained as running sums; high/low are rescanned only when an
+ * expiring trade was the current extreme.
+ */
+export const TICKER_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+interface WindowTrade {
   tradeId: string;
-  symbol: string;
-  price: string;
-  quantity: string;
   timestamp: number;
-}
-
-interface StoredTrade {
-  tradeId: string;
   price: bigint;
   quantity: bigint;
+  quote: bigint;
+}
+
+interface LastTrade {
+  tradeId: string;
   timestamp: number;
-  insertionOrder: number;
+  price: bigint;
 }
 
-interface MarketTrades {
-  trades: StoredTrade[];
-  seenTradeIds: Map<string, number>;
-  nextInsertionOrder: number;
+function before(a: { timestamp: number; tradeId: string }, b: { timestamp: number; tradeId: string }) {
+  return a.timestamp < b.timestamp || (a.timestamp === b.timestamp && a.tradeId < b.tradeId);
 }
 
-const SCALE = 10n ** 18n;
-const WINDOW_MS = 24 * 60 * 60 * 1000;
+class RollingWindow {
+  /** Sorted ascending by (timestamp, tradeId); entries before `head` are expired. */
+  private trades: WindowTrade[] = [];
+  private head = 0;
+  private readonly ids = new Set<string>();
 
-function parseDecimal(value: string): bigint {
-  if (!/^\d+(\.\d+)?$/.test(value)) {
-    throw new Error(`Invalid decimal value: ${value}`);
+  baseVolume = 0n;
+  quoteVolume = 0n;
+  private high: bigint | null = null;
+  private low: bigint | null = null;
+  private extremesStale = false;
+  last: LastTrade | null = null;
+
+  get size(): number {
+    return this.trades.length - this.head;
   }
 
-  const [whole, fraction = ""] = value.split(".");
-
-  if (fraction.length > 18) {
-    throw new Error(`Decimal exceeds 18 places: ${value}`);
+  has(tradeId: string): boolean {
+    return this.ids.has(tradeId);
   }
 
-  return BigInt(whole!) * SCALE + BigInt(fraction.padEnd(18, "0") || "0");
-}
+  /** Returns false for duplicates and for trades already outside the window. */
+  add(trade: WindowTrade, now: number): boolean {
+    if (!this.last || before(this.last, trade)) {
+      this.last = { tradeId: trade.tradeId, timestamp: trade.timestamp, price: trade.price };
+    }
 
-function formatDecimal(value: bigint): string {
-  const negative = value < 0n;
-  const absolute = negative ? -value : value;
+    if (this.ids.has(trade.tradeId) || trade.timestamp <= now - TICKER_WINDOW_MS) {
+      return false;
+    }
 
-  const whole = absolute / SCALE;
-  const fraction = (absolute % SCALE)
-    .toString()
-    .padStart(18, "0")
-    .replace(/0+$/, "");
+    // Binary search insertion keeps out-of-order trades correctly placed.
+    let lo = this.head;
+    let hi = this.trades.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (before(this.trades[mid]!, trade)) lo = mid + 1;
+      else hi = mid;
+    }
+    this.trades.splice(lo, 0, trade);
+    this.ids.add(trade.tradeId);
 
-  return `${negative ? "-" : ""}${whole}${fraction ? `.${fraction}` : ""}`;
+    this.baseVolume += trade.quantity;
+    this.quoteVolume += trade.quote;
+    if (!this.extremesStale) {
+      if (this.high === null || trade.price > this.high) this.high = trade.price;
+      if (this.low === null || trade.price < this.low) this.low = trade.price;
+    }
+    return true;
+  }
+
+  /** Drops trades that left the window. Returns true if anything expired. */
+  expire(now: number): boolean {
+    const cutoff = now - TICKER_WINDOW_MS;
+    let expired = false;
+
+    while (this.head < this.trades.length && this.trades[this.head]!.timestamp <= cutoff) {
+      const old = this.trades[this.head]!;
+      this.baseVolume -= old.quantity;
+      this.quoteVolume -= old.quote;
+      this.ids.delete(old.tradeId);
+      if (old.price === this.high || old.price === this.low) this.extremesStale = true;
+      this.head += 1;
+      expired = true;
+    }
+
+    // Compact occasionally so the backing array does not grow unbounded.
+    if (this.head > 1024 && this.head * 2 > this.trades.length) {
+      this.trades = this.trades.slice(this.head);
+      this.head = 0;
+    }
+
+    return expired;
+  }
+
+  extremes(): { high: bigint | null; low: bigint | null } {
+    if (this.extremesStale) {
+      this.high = null;
+      this.low = null;
+      for (let i = this.head; i < this.trades.length; i++) {
+        const p = this.trades[i]!.price;
+        if (this.high === null || p > this.high) this.high = p;
+        if (this.low === null || p < this.low) this.low = p;
+      }
+      this.extremesStale = false;
+    }
+    return { high: this.high, low: this.low };
+  }
+
+  first(): WindowTrade | undefined {
+    return this.trades[this.head];
+  }
 }
 
 export class TickerAggregator {
-  private readonly markets = new Map<string, MarketTrades>();
+  private readonly windows = new Map<string, RollingWindow>();
 
-  private getMarket(symbol: string): MarketTrades {
-    let market = this.markets.get(symbol);
+  constructor(private readonly store: TickerStore) {}
 
-    if (!market) {
-      market = {
-        trades: [],
-        seenTradeIds: new Map(),
-        nextInsertionOrder: 0,
-      };
-
-      this.markets.set(symbol, market);
+  private window(symbol: string): RollingWindow {
+    let w = this.windows.get(symbol);
+    if (!w) {
+      w = new RollingWindow();
+      this.windows.set(symbol, w);
     }
-
-    return market;
+    return w;
   }
 
-  private validateTrade(event: TradeExecutedEvent): {
-    price: bigint;
-    quantity: bigint;
-  } {
-    if (
-      !event.symbol ||
-      !event.tradeId ||
-      !Number.isSafeInteger(event.timestamp) ||
-      event.timestamp < 0
-    ) {
-      throw new Error("Invalid trade event");
-    }
-
-    const price = parseDecimal(event.price);
-    const quantity = parseDecimal(event.quantity);
-
-    if (price <= 0n || quantity <= 0n) {
-      throw new Error("Trade price and quantity must be positive");
-    }
-
-    return { price, quantity };
+  /** Ensures a (possibly empty) ticker exists for each symbol. */
+  register(symbols: string[], now = Date.now()): void {
+    for (const symbol of symbols) this.recompute(symbol, now);
   }
 
+  /**
+   * Folds a trade into the rolling window. Returns the ticker and whether its
+   * values changed (false for duplicates and trades outside the window that do
+   * not move `lastPrice`).
+   */
+  processTrade(trade: PublicTrade, now = Date.now()): { ticker: TickerState; changed: boolean } {
+    const w = this.window(trade.symbol);
+    const price = toScaled(trade.price);
+    const quantity = toScaled(trade.quantity);
 
-  public processTrade(event: TradeExecutedEvent): void {
-    const { price, quantity } = this.validateTrade(event);
-
-    const market = this.getMarket(event.symbol);
-
-    if (market.seenTradeIds.has(event.tradeId)) {
-      return;
-    }
-
-    const now = Date.now();
-    const cutoff = now - WINDOW_MS;
-
-  
-    if (event.timestamp < cutoff) {
-      return;
-    }
-
-    const trade: StoredTrade = {
-      tradeId: event.tradeId,
-      price,
-      quantity,
-      timestamp: event.timestamp,
-      insertionOrder: market.nextInsertionOrder++,
-    };
-
-    market.trades.push(trade);
-    market.seenTradeIds.set(event.tradeId, event.timestamp);
-
-   
-    this.pruneExpiredTrades(event.symbol, now);
-
-  
-    market.trades.sort(
-      (a, b) =>
-        a.timestamp - b.timestamp || a.insertionOrder - b.insertionOrder,
+    w.expire(now);
+    w.add(
+      { tradeId: trade.tradeId, timestamp: trade.timestamp, price, quantity, quote: mulScaled(price, quantity) },
+      now,
     );
 
-    this.recalculateTicker(event.symbol);
+    return this.recompute(trade.symbol, now);
   }
 
-  private pruneExpiredTrades(symbol: string, now: number): void {
-    const market = this.getMarket(symbol);
-    const cutoff = now - WINDOW_MS;
-
-    market.trades = market.trades.filter((trade) => trade.timestamp >= cutoff);
-
-    for (const [tradeId, timestamp] of market.seenTradeIds) {
-      if (timestamp < cutoff) {
-        market.seenTradeIds.delete(tradeId);
-      }
-    }
+  /** Current ticker for a symbol with the window expired to `now`. */
+  current(symbol: string, now = Date.now()): TickerState {
+    return this.recompute(symbol, now).ticker;
   }
 
-  private recalculateTicker(symbol: string): void {
-    const market = this.getMarket(symbol);
-    const trades = market.trades;
-
-    if (trades.length === 0) {
-      tickerStore.updateTicker(symbol, {
-        open24h: null,
-        high24h: null,
-        low24h: null,
-        priceChange24h: null,
-        priceChangePercent24h: null,
-        baseVolume24h: "0",
-        quoteVolume24h: "0",
-      });
-
-      return;
+  /** Expires old trades for every market; returns tickers whose values changed. */
+  refresh(now = Date.now()): TickerState[] {
+    const changed: TickerState[] = [];
+    for (const symbol of this.windows.keys()) {
+      const result = this.recompute(symbol, now);
+      if (result.changed) changed.push(result.ticker);
     }
-
-    const first = trades[0]!;
-    const last = trades[trades.length - 1]!;
-
-    let high = first.price;
-    let low = first.price;
-    let baseVolume = 0n;
-    let quoteVolume = 0n;
-
-    for (const trade of trades) {
-      if (trade.price > high) high = trade.price;
-      if (trade.price < low) low = trade.price;
-
-      baseVolume += trade.quantity;
-
-      quoteVolume += (trade.price * trade.quantity) / SCALE;
-    }
-
-    const priceChange = last.price - first.price;
-
-    const priceChangePercent =
-      first.price === 0n ? null : (priceChange * 100n * SCALE) / first.price;
-
-    tickerStore.updateTicker(symbol, {
-      lastPrice: formatDecimal(last.price),
-      lastTradeTimestamp: last.timestamp,
-
-      open24h: formatDecimal(first.price),
-      high24h: formatDecimal(high),
-      low24h: formatDecimal(low),
-
-      priceChange24h: formatDecimal(priceChange),
-      priceChangePercent24h:
-        priceChangePercent === null ? null : formatDecimal(priceChangePercent),
-
-      baseVolume24h: formatDecimal(baseVolume),
-      quoteVolume24h: formatDecimal(quoteVolume),
-    });
+    return changed;
   }
 
-  public reconstructMarket(
-    symbol: string,
-    historicalTrades: TradeExecutedEvent[],
-  ): void {
-    this.markets.delete(symbol);
+  private recompute(symbol: string, now: number): { ticker: TickerState; changed: boolean } {
+    const w = this.window(symbol);
+    w.expire(now);
 
-    const market = this.getMarket(symbol);
-    const now = Date.now();
-    const cutoff = now - WINDOW_MS;
+    const first = w.first();
+    const { high, low } = w.extremes();
+    const last = w.last;
 
-    // Keep only trades belonging to this market and the current window.
-    const trades = historicalTrades
-      .filter(
-        (trade) =>
-          trade.symbol === symbol &&
-          trade.timestamp >= cutoff &&
-          trade.timestamp <= now,
-      )
-      .sort((a, b) => a.timestamp - b.timestamp);
+    const values: TickerValues = {
+      lastPrice: last ? formatScaled(last.price) : null,
+      lastTradeTimestamp: last?.timestamp ?? null,
+      open24h: null,
+      high24h: null,
+      low24h: null,
+      priceChange24h: null,
+      priceChangePercent24h: null,
+      baseVolume24h: formatScaled(w.baseVolume),
+      quoteVolume24h: formatScaled(w.quoteVolume),
+      tradeCount24h: w.size,
+      windowStart: now - TICKER_WINDOW_MS,
+    };
 
-    for (const event of trades) {
-      this.processTrade(event);
+    if (first && last && high !== null && low !== null) {
+      const percent = percentChangeScaled(first.price, last.price);
+      values.open24h = formatScaled(first.price);
+      values.high24h = formatScaled(high);
+      values.low24h = formatScaled(low);
+      values.priceChange24h = formatScaled(last.price - first.price);
+      values.priceChangePercent24h = percent === null ? null : formatScaled(percent);
     }
 
-    // Ensure a ticker exists even when no trades occurred in the window.
-    if (trades.length === 0) {
-      tickerStore.getOrCreateTicker(symbol);
-      tickerStore.updateTicker(symbol, {
-        lastPrice: null,
-        lastTradeTimestamp: null,
-        open24h: null,
-        high24h: null,
-        low24h: null,
-        priceChange24h: null,
-        priceChangePercent24h: null,
-        baseVolume24h: "0",
-        quoteVolume24h: "0",
-      });
-    }
+    return this.store.update(symbol, values);
   }
 
-
-  public reconstructMarkets(
-    symbols: string[],
-    historicalTrades: TradeExecutedEvent[],
-  ): void {
-    for (const symbol of symbols) {
-      this.reconstructMarket(
-        symbol,
-        historicalTrades.filter((trade) => trade.symbol === symbol),
-      );
-    }
-  }
-
-
-  public clear(): void {
-    this.markets.clear();
-  }
-
-
-  public resetMarket(symbol: string): void {
-    this.markets.delete(symbol);
+  clear(): void {
+    this.windows.clear();
   }
 }
-
-export const tickerAggregator = new TickerAggregator();

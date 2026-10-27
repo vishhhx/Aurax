@@ -1,5 +1,8 @@
 # Aurax Backend
 
+> **Current documentation:** [frontend-integration/README.md](frontend-integration/README.md) (API, WebSocket, auth, events, readiness matrix, all verified against the code on 2026-10-26).
+> Audit trail: [INTEGRATION_AUDIT.md](INTEGRATION_AUDIT.md) · [EVENT_FLOWS.md](EVENT_FLOWS.md). Pages below marked *superseded* describe an earlier design.
+
 > Backend services powering the Aurax Centralized Exchange (CEX).
 
 This repository contains the backend services responsible for authentication, wallet management, real-time communication, and future exchange modules.

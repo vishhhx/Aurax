@@ -20,6 +20,8 @@ export class MarketRepository {
         minQuantity: true,
         maxQuantity: true,
         minNotional: true,
+        makerFee: true,
+        takerFee: true,
         pricePrecision: true,
         quantityPrecision: true,
       },

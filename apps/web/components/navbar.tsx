@@ -1,13 +1,43 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
-import { AnimatedMorphingIcon, zapIcon, shieldIcon, lockIcon } from "@/components/morphing-icon"
-import { SunIcon, MoonIcon, LogOut, LayoutDashboard } from "lucide-react"
-import { useAppSelector, useAppDispatch } from "@/hooks/useRedux"
-import { selectIsAuthenticated, signOut } from "@/store/slices/authSlice"
+import {
+  LayoutDashboardIcon,
+  LogOutIcon,
+  MenuIcon,
+  MoonIcon,
+  SunIcon,
+} from "lucide-react"
+
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Skeleton } from "@/components/ui/skeleton"
+import { DepositDialog } from "@/components/deposit-dialog"
+import { useAppDispatch, useAppSelector } from "@/hooks/useRedux"
+import {
+  selectIsAuthenticated,
+  selectIsSessionLoading,
+  signOut,
+} from "@/store/slices/authSlice"
+import { cn } from "@/lib/utils"
+
+const NAV_LINKS = [
+  { href: "/#markets", label: "Markets" },
+  { href: "/#trade", label: "Trade" },
+  { href: "/#features", label: "Why Aurax" },
+] as const
 
 function getInitials(name: string) {
   return name
@@ -18,39 +48,43 @@ function getInitials(name: string) {
     .toUpperCase()
 }
 
-export default function Navbar() {
+export function BrandLogo({ className }: { className?: string }) {
+  return (
+    <Link
+      href="/"
+      className={cn("flex items-center gap-2 rounded-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none", className)}
+    >
+      <Image src="/logo.png" alt="" width={28} height={28} className="rounded-md" priority />
+      <span className="text-lg font-bold tracking-tight">Aurax</span>
+      <span className="sr-only">Exchange home</span>
+    </Link>
+  )
+}
+
+function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  const [statusIdx, setStatusIdx] = useState(1)
+
+  // Both icons render and CSS picks one, so there is no hydration mismatch
+  // and no "mounted" flicker.
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Toggle color theme"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+    >
+      <SunIcon className="hidden dark:block" />
+      <MoonIcon className="dark:hidden" />
+    </Button>
+  )
+}
+
+function UserMenu() {
   const router = useRouter()
   const dispatch = useAppDispatch()
-  const isAuthenticated = useAppSelector(selectIsAuthenticated)
   const user = useAppSelector((s) => s.auth.user)
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setStatusIdx((prev) => (prev + 1) % 3)
-    }, 15000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const getStatusText = () => {
-    if (statusIdx === 0) return "Node: High Speed"
-    if (statusIdx === 1) return "Node: Secured"
-    return "Node: Encrypted"
-  }
-
-  const getStatusColor = () => {
-    if (statusIdx === 0) return "text-amber-400 bg-amber-500/5 border-amber-500/10"
-    if (statusIdx === 1) return "text-emerald-400 bg-emerald-500/5 border-emerald-500/10"
-    return "text-indigo-400 bg-indigo-500/5 border-indigo-500/10"
-  }
-
-  const icons = [zapIcon, shieldIcon, lockIcon]
+  if (!user) return null
 
   const handleLogout = () => {
     void dispatch(signOut())
@@ -58,102 +92,120 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/60 backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 group">
-            <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 via-teal-400 to-indigo-500 bg-clip-text text-transparent group-hover:opacity-80 transition-opacity">
-              Aurax
-            </span>
-            <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-              Exchange
-            </span>
-          </Link>
-
-          <div className="hidden items-center gap-5 text-xs font-medium text-muted-foreground md:flex">
-            <Link href="/" className="hover:text-foreground transition-colors text-foreground font-semibold">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Open account menu" className="rounded-full">
+          <Avatar className="size-8">
+            <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary-emphasis">
+              {getInitials(user.name)}
+            </AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="flex flex-col gap-0.5 py-2">
+          <span className="truncate text-sm font-semibold text-foreground">{user.name}</span>
+          <span className="truncate text-xs font-normal text-muted-foreground">{user.email}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard">
+              <LayoutDashboardIcon />
               Dashboard
             </Link>
-            <Link href="/trade" className="hover:text-foreground transition-colors">
-              Markets
-            </Link>
-            <Link href="/learn" className="hover:text-foreground transition-colors">
-              Launchpad
-            </Link>
-            <Link href="/docs" className="hover:text-foreground transition-colors">
-              Docs
-            </Link>
-          </div>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem variant="destructive" onSelect={handleLogout}>
+            <LogOutIcon />
+            Sign out
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function MobileNav({ isAuthenticated }: { isAuthenticated: boolean }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Open navigation" className="md:hidden">
+          <MenuIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuGroup>
+          {NAV_LINKS.map((l) => (
+            <DropdownMenuItem key={l.href} asChild>
+              <Link href={l.href}>{l.label}</Link>
+            </DropdownMenuItem>
+          ))}
+          {isAuthenticated ? (
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard">Dashboard</Link>
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+export default function Navbar() {
+  const pathname = usePathname()
+  const isAuthenticated = useAppSelector(selectIsAuthenticated)
+  const isSessionLoading = useAppSelector(selectIsSessionLoading)
+
+  return (
+    <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md supports-backdrop-filter:bg-background/65">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="flex items-center gap-8">
+          <BrandLogo />
+          <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
+            {NAV_LINKS.map((l) => (
+              <Button key={l.href} asChild variant="ghost" className="text-muted-foreground">
+                <Link href={l.href}>{l.label}</Link>
+              </Button>
+            ))}
+            {isAuthenticated ? (
+              <Button
+                asChild
+                variant="ghost"
+                className={cn(pathname === "/dashboard" ? "text-foreground" : "text-muted-foreground")}
+              >
+                <Link href="/dashboard" aria-current={pathname === "/dashboard" ? "page" : undefined}>
+                  Dashboard
+                </Link>
+              </Button>
+            ) : null}
+          </nav>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Connection Status Badge */}
-          <button
-            onClick={() => setStatusIdx((prev) => (prev + 1) % 3)}
-            title="Click to toggle connection node status"
-            className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-300 cursor-pointer ${getStatusColor()}`}
-          >
-            <AnimatedMorphingIcon
-              icons={icons}
-              current={statusIdx}
-              size={13}
-              color="currentColor"
-              duration={500}
-            />
-            <span className="hidden sm:inline transition-opacity duration-300">{getStatusText()}</span>
-          </button>
-
-          {/* Theme Toggle */}
-          {mounted && (
-            <button
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              className="rounded-lg border border-border/40 bg-card/20 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all cursor-pointer"
-              title="Toggle theme"
-            >
-              {resolvedTheme === "dark" ? (
-                <SunIcon className="size-4" />
-              ) : (
-                <MoonIcon className="size-4" />
-              )}
-            </button>
-          )}
-
-          {/* Auth section */}
-          {isAuthenticated && user ? (
-            <div className="flex items-center gap-2">
-              <Link
-                href="/dashboard"
-                className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border/40 bg-card/20 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-              >
-                <LayoutDashboard className="size-3.5" />
-                Dashboard
-              </Link>
-              {/* User avatar with initials */}
-              <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-card/20 px-2.5 py-1.5">
-                <div className="flex size-5 items-center justify-center rounded-full bg-emerald-500/20 text-[9px] font-bold text-emerald-400">
-                  {getInitials(user.name)}
-                </div>
-                <span className="text-xs font-medium hidden lg:block max-w-24 truncate">{user.name}</span>
-              </div>
-              <button
-                id="nav-btn-logout"
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 rounded-lg border border-border/40 bg-card/20 p-1.5 text-muted-foreground hover:text-rose-400 hover:border-rose-400/30 transition-all cursor-pointer"
-                title="Sign out"
-              >
-                <LogOut className="size-4" />
-              </button>
-            </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <ThemeToggle />
+          {isSessionLoading ? (
+            <Skeleton className="h-8 w-28 rounded-lg" />
+          ) : isAuthenticated ? (
+            <>
+              <DepositDialog />
+              <UserMenu />
+            </>
           ) : (
-            <Link
-              href="/login"
-              className="rounded-lg bg-emerald-500 hover:bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:shadow-emerald-500/10 transition-all border border-emerald-400/20"
-            >
-              Sign In
-            </Link>
+            <>
+              <Button asChild variant="ghost" className="hidden sm:inline-flex">
+                <Link href="/login">Log in</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/register">Sign up</Link>
+              </Button>
+            </>
           )}
+          <MobileNav isAuthenticated={isAuthenticated} />
         </div>
       </div>
-    </nav>
+    </header>
   )
 }

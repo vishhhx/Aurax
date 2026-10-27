@@ -1,75 +1,73 @@
-import { connectToredis } from "@repo/redis";
-await connectToredis();
 import express from "express";
-
 import { createServer } from "http";
-
 import { Server } from "socket.io";
+
 import { ENV } from "./config/env";
-const app = express();
-const httpServer = createServer(app);
-export const io = new Server(httpServer, {});
-
-logger.info("Connected to Redis successfully");
-import {
-  extractSocketToken,
-  type UserPayload,
-  verifyToken,
-} from "@repo/core/jwt";
-
 import logger from "./config/logger";
-import {
-  handleSocketConnection,
-  handleSocketDisconnect,
-  handleSocketError,
-} from "./handlers/connection.handlers";
-import { setGlobalIO } from "./utils/socketManager";
-import { consumeDeposit } from "./consumer/deposit.consumer";
+import { attachGateway } from "./gateway";
+import { createMarketHub, startMarketDataConsumer, stopMarketData } from "./market/market-data";
+import { startUserEventConsumers, stopUserEventConsumers } from "./private/user-events";
+import { metrics } from "./utils/metrics";
 
-setGlobalIO(io);
-
-io.use(async (socket, next) => {
-  try {
-    const token = extractSocketToken(socket);
-    if (!token) {
-      return next(new Error("Authentication required"));
-    }
-
-    const payload = verifyToken(
-      token,
-      ENV.JWT_ACCESS_SECRET as string,
-    ) as UserPayload;
-
-    socket.data.authUser = {
-      userId: String(payload.userId),
-    };
-
-    return next();
-  } catch (error: any) {
-    logger.error("Socket auth middleware error:", error);
-    return next(new Error("Socket authentication failed"));
-  }
-});
-
-io.on("connection", (socket) => {
-  const authUser = socket.data.authUser;
-
-  handleSocketConnection(socket, io, authUser);
-
-  socket.on("disconnect", () => {
-    handleSocketDisconnect(socket, authUser.id);
-  });
-
-  socket.on("error", (error) => {
-    handleSocketError(socket, authUser.id, error);
-  });
-});
-
-async function StartConsumingKafkaMessages() {
-  await consumeDeposit();
+if (!ENV.JWT_ACCESS_SECRET) {
+  logger.fatal("JWT_ACCESS_SECRET is required");
+  process.exit(1);
 }
 
-httpServer.listen(ENV.PORT, () => {
-  StartConsumingKafkaMessages();
-  logger.info(`websocket server is running on port ${ENV.PORT}`);
+const app = express();
+app.get("/health", (_req, res) => {
+  res.json({ success: true, data: { status: "live", sockets: io.sockets.sockets.size, instance: ENV.INSTANCE_ID } });
 });
+app.get("/metrics", (_req, res) => {
+  res.type("text/plain").send(metrics.render());
+});
+
+const httpServer = createServer(app);
+export const io = new Server(httpServer, {
+  // Browsers connect with credentials (accessToken cookie) from the frontend origin.
+  cors: { origin: ENV.CORS_ORIGINS, credentials: true },
+  // Heartbeat: socket.io pings every 25s and drops clients silent for 20s.
+  pingInterval: 25_000,
+  pingTimeout: 20_000,
+  maxHttpBufferSize: 64 * 1024,
+});
+
+createMarketHub(io);
+attachGateway(io, { jwtSecret: ENV.JWT_ACCESS_SECRET });
+
+async function startConsumers(): Promise<void> {
+  await Promise.all([startMarketDataConsumer(), startUserEventConsumers(io)]);
+}
+
+httpServer.on("error", (error) => {
+  logger.fatal({ err: error, port: ENV.PORT }, "WebSocket gateway failed to bind");
+  process.exit(1);
+});
+
+httpServer.listen(ENV.PORT, () => {
+  logger.info(`websocket server is running on port ${ENV.PORT} (instance ${ENV.INSTANCE_ID})`);
+  startConsumers().catch((error) => {
+    logger.error({ err: error }, "Failed to start Kafka consumers");
+  });
+});
+
+let shuttingDown = false;
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, "Shutting down websocket server");
+  const force = setTimeout(() => process.exit(1), 10_000);
+  force.unref();
+  try {
+    // Consumers first (deleting this instance's groups), then sockets.
+    await Promise.allSettled([stopMarketData(), stopUserEventConsumers()]);
+    await new Promise<void>((resolve) => io.close(() => resolve()));
+  } finally {
+    clearTimeout(force);
+    process.exit(0);
+  }
+}
+
+process.once("SIGINT", () => void shutdown("SIGINT"));
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("unhandledRejection", (reason) => logger.error({ err: reason }, "Unhandled promise rejection"));

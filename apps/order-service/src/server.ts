@@ -1,24 +1,54 @@
+import type { Server } from "node:http";
+import type { Consumer } from "kafkajs";
+import { CompressionTypes } from "kafkajs";
+import { connectKafka, disconnectKafka, producer } from "@repo/kafka";
+import { connectToPostgres, OutboxRelay, prisma } from "@repo/pg";
+
 import { app } from "./app";
-import { connectMongoDb } from "@repo/database";
 import { ENV } from "./config/env";
 import logger from "./config/logger";
-import { connectToredis } from "@repo/redis";
-import { connectToPostgres } from "@repo/pg";
+import { consumeExecutionReports } from "./consumers/order.consumer";
 
-import { connectKafka } from "@repo/kafka";
+let server: Server | undefined;
+let consumer: Consumer | undefined;
+
+const relay = new OutboxRelay({
+  send: async (topic, messages) => {
+    await producer.send({ topic, acks: -1, compression: CompressionTypes.GZIP, messages });
+  },
+  onError: (error) => logger.error({ err: error }, "Outbox relay failed; will retry"),
+});
+
 const startServer = async () => {
-  await connectMongoDb();
-  logger.info("Connected to MongoDB");
-  await connectToredis();
-  logger.info("Connected to Redis");
   await connectToPostgres();
-  logger.info("connected to postgres");
+  logger.info("Connected to PostgreSQL");
   await connectKafka();
-  logger.info("connected to kafka");
-  const port = ENV.PORT;
-  app.listen(port, () => {
-    logger.info(`Order service is running on port ${port}`);
-  });
+  logger.info("Kafka producer connected");
+
+  if (ENV.OUTBOX_RELAY) relay.start();
+  consumer = await consumeExecutionReports();
+
+  server = app.listen(ENV.PORT, () => logger.info(`Order service is running on port ${ENV.PORT}`));
 };
 
-startServer();
+let stopping = false;
+const shutdown = async (signal: string) => {
+  if (stopping) return;
+  stopping = true;
+  logger.info({ signal }, "Shutting down order service");
+  setTimeout(() => process.exit(1), 15_000).unref();
+  await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
+  await consumer?.disconnect().catch(() => undefined);
+  if (ENV.OUTBOX_RELAY) await relay.stop();
+  await disconnectKafka().catch(() => undefined);
+  await prisma.$disconnect();
+  process.exit(0);
+};
+
+process.once("SIGINT", () => void shutdown("SIGINT"));
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+
+startServer().catch((error) => {
+  logger.fatal({ err: error }, "Order service failed to start");
+  process.exit(1);
+});

@@ -60,3 +60,13 @@ export const setAuthCookies = (res: Response, tokens: AuthTokens): Response =>
       sameSite: "lax",
       maxAge: REFRESH_TOKEN_MAX_AGE,
     });
+
+export const clearAuthCookies = (res: Response): Response => {
+  // Attributes must match the ones the cookies were set with or browsers keep them.
+  const options = {
+    httpOnly: true,
+    secure: ENV.NODE_ENV === "production",
+    sameSite: "lax" as const,
+  };
+  return res.clearCookie("accessToken", options).clearCookie("refreshToken", options);
+};

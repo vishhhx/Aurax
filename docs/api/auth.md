@@ -1,5 +1,8 @@
 # Authentication API
 
+> **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
+> The current, code-verified contract is [authentication.md](../frontend-integration/authentication.md).
+
 ## Overview
 
 The Authentication Service is responsible for user authentication, OAuth integrations, session management, token refresh, and user details retrieval.

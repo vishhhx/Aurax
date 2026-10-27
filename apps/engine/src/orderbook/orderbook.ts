@@ -3,7 +3,17 @@ import type { Order } from "../types/order";
 import type { PriceLevel } from "../types/orderbook";
 
 export class OrderBook {
-  constructor(public readonly market: string) {}
+  /**
+   * @param roundQuantity rounds a quantity to the market's precision so that
+   *        float sums of level quantities never accumulate residue.
+   */
+  constructor(
+    public readonly market: string,
+    private readonly roundQuantity: (value: number) => number = (v) => v,
+  ) {}
+
+  /** orderId → resting order, for O(1) cancel lookups. */
+  private readonly index = new Map<string, Order>();
 
   private bids: Map<number, Order[]> = new Map();
 
@@ -13,6 +23,7 @@ export class OrderBook {
 
   public addOrder(order: Order): void {
     const book = order.side === "BUY" ? this.bids : this.asks;
+    this.index.set(order.id, order);
 
     const orders = book.get(order.price);
 
@@ -44,6 +55,7 @@ export class OrderBook {
     }
 
     const [removed] = orders.splice(index, 1);
+    this.index.delete(orderId);
 
     if (orders.length === 0) {
       book.delete(price);
@@ -68,6 +80,11 @@ export class OrderBook {
     }
 
     orders[index] = order;
+    this.index.set(order.id, order);
+  }
+
+  public findOrder(orderId: string): Order | undefined {
+    return this.index.get(orderId);
   }
 
   public getBestBidPrice(): number | null {
@@ -189,12 +206,13 @@ export class OrderBook {
       return 0;
     }
 
-    return orders.reduce((total, order) => total + order.remainingQuantity, 0);
+    return this.roundQuantity(orders.reduce((total, order) => total + order.remainingQuantity, 0));
   }
 
   public setOrderBook(asks: Order[], bids: Order[]): void {
     this.bids.clear();
     this.asks.clear();
+    this.index.clear();
 
     for (const order of bids) {
       this.addOrder(order);
@@ -208,6 +226,7 @@ export class OrderBook {
   public restoreOrders(orders: Order[]): void {
     this.bids.clear();
     this.asks.clear();
+    this.index.clear();
 
     for (const order of orders) {
       this.addOrder(order);

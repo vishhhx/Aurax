@@ -1,12 +1,13 @@
 import express from "express";
-import cookieParser from "cookie-parser";
 
-import { marketRouter } from "./routes/market";
-import tradeRouter from "./routes/trades";
+import { errorHandler, notFound } from "./middleware/http";
+import { marketRouter, opsRouter } from "./routes/market";
 
 export const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-app.use("/", marketRouter);
-app.use("/markets", tradeRouter);
+
+app.disable("x-powered-by");
+app.use(express.json({ limit: "16kb" }));
+app.use(opsRouter);
+app.use(marketRouter);
+app.use(notFound);
+app.use(errorHandler);
