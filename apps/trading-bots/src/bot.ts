@@ -53,6 +53,9 @@ let fills: Trade[] = [];
 const bal = { base: "0", quote: "0", baseLocked: "0", quoteLocked: "0" };
 let sessionNotional = 0;
 let lastSubmitAt = 0;
+/** Cancel requests in flight (orderId → sent at). Re-sent only after CANCEL_RETRY_MS if the order is still open. */
+const cancelSentAt = new Map<string, number>();
+const CANCEL_RETRY_MS = 15_000;
 let trading = bot.limits.dryRun ? "dry-run" : "starting";
 let note = "reconciling with backend…";
 let halted = false;
@@ -106,8 +109,13 @@ async function execute(): Promise<void> {
   note = p.note;
   if (!p.cancels.length && !p.places.length) return;
   lastSubmitAt = Date.now();
+  const now = Date.now();
+  for (const [id, at] of cancelSentAt) if (now - at > CANCEL_RETRY_MS) cancelSentAt.delete(id);
   for (const id of p.cancels) {
     if (bot!.limits.dryRun) { log(`[dry] cancel ${id.slice(-8)}`); continue; }
+    // Cancels settle asynchronously; the order stays "open" until the engine confirms. Don't resend meanwhile.
+    if (cancelSentAt.has(id)) continue;
+    cancelSentAt.set(id, now);
     await http.cancel(id).then(() => log(`cancel ${id.slice(-8)}`), (e) => fail(`cancel ${id.slice(-8)}: ${e.message}`));
   }
   for (const o of p.places) {
@@ -138,6 +146,11 @@ async function tick(): Promise<void> {
     if (killed()) return void (await shutdown("global kill switch"));
     if (reconcileSoon || tickN % 2 === 0) { reconcileSoon = false; await reconcile(); }
     if (tickN % 5 === 1) fills = await http.trades(bot!.symbol, 5).catch(() => fills);
+    // WS only pushes the ticker on trades; on a quiet market, recover the last price over REST.
+    if (lastPrice === null && tickN % 10 === 1) {
+      const t = await http.ticker(bot!.symbol).catch(() => null);
+      if (t?.lastPrice) lastPrice = Number(t.lastPrice);
+    }
     if (!feed.connected || !book.usable) { trading = "paused"; note = feed.connected ? "waiting for consistent order book" : "WebSocket down: not trading on stale data"; return; }
     if (ambiguous) { trading = "paused"; note = "reconciling ambiguous submission"; return; }
     trading = bot!.limits.dryRun ? "dry-run" : "active";

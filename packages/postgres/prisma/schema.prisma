@@ -188,6 +188,8 @@ model Order {
 
   status OrderStatus @default(PENDING)
 
+  /// Set when a cancel command is enqueued; suppresses duplicate engine cancel commands.
+  cancelRequestedAt DateTime?
 
   referenceId String @unique
 

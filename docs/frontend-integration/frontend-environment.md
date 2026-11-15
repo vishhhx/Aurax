@@ -9,8 +9,7 @@ into the browser bundle at build time. **Never put a secret here.**
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:5000` | api-gateway origin; all REST calls go to `${API}/api/v1/...` |
 | `NEXT_PUBLIC_SOCKET_URL` | `http://localhost:5005` | websockets (socket.io) origin |
-| `NEXT_PUBLIC_RAZORPAY_KEY` | a hard-coded test key id (to be removed) | Razorpay **key id** (public). It must belong to the same Razorpay account as wallet-service's `RAZORPAY_CLIENT_ID`, or checkout cannot pay the order |
-| `NEXT_PUBLIC_DEMO_MODE` | `false` | `true` shows the simulated market (clearly labelled) instead of real data |
+| `NEXT_PUBLIC_RAZORPAY_KEY` | none — when unset, the deposit page says INR deposits are not configured | Razorpay **key id** (public). It must belong to the same Razorpay account as wallet-service's `RAZORPAY_CLIENT_ID`, or checkout cannot pay the order |
 
 `apps/web/.env.example` lists these. The local `apps/web/.env` is git-ignored.
 It currently defines `RAZORPAY_KEY`, a name the code never reads: rename it to
@@ -76,5 +75,5 @@ must not be exposed outside the machine or private network.
    float math for anything that is submitted.
 4. Show `message` from error envelopes, never stack traces. The backend
    omits stacks unless `NODE_ENV=development`.
-5. Demo data is only shown when `NEXT_PUBLIC_DEMO_MODE=true`, and is always
-   labelled.
+5. There is no demo or simulated data in the web app; test fixtures live
+   only in `apps/web/test`.

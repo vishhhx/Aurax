@@ -11,8 +11,8 @@ const ETH: Market = { ...BTC, symbol: "ETHUSDC", baseAsset: "ETH" };
 const alloc = (symbol: string, maker: number, taker = 0, liquidity = 0) => ({ symbol, roles: { maker, taker, liquidity }, budget: { base: "1", quote: "1000" }, limits: {} });
 
 describe("plan validation", () => {
-  test("rejects more than fifteen bots", () => expect(() => buildPlan(16, [alloc("BTCUSDC", 16)], [BTC])).toThrow("1–15"));
-  test("accepts fifteen bots", () => expect(buildPlan(15, [alloc("BTCUSDC", 5, 5, 5)], [BTC]).bots).toHaveLength(15));
+  test("rejects more than thirty bots", () => expect(() => buildPlan(31, [alloc("BTCUSDC", 31)], [BTC])).toThrow("1–30"));
+  test("accepts thirty bots", () => expect(buildPlan(30, [alloc("BTCUSDC", 10, 10, 10)], [BTC]).bots).toHaveLength(30));
   test("rejects unknown market", () => expect(() => buildPlan(1, [alloc("DOGEUSDC", 1)], [BTC])).toThrow("unknown market"));
   test("rejects allocation mismatch", () => expect(() => buildPlan(3, [alloc("BTCUSDC", 1, 1)], [BTC])).toThrow("add up to 2"));
   test("rejects negative budgets", () => expect(() => buildPlan(1, [{ ...alloc("BTCUSDC", 1), budget: { base: "-1", quote: "1" } }], [BTC])).toThrow("invalid budget"));

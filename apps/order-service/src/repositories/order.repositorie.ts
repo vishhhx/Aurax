@@ -33,6 +33,7 @@ const TERMINAL: OrderStatus[] = [OrderStatus.FILLED, OrderStatus.CANCELLED, Orde
  * bound are absorbed; anything larger is a real invariant violation.
  */
 const DUST_PER_FILL = dec("0.00000001");
+const CANCEL_RESEND_MS = 30_000;
 
 type Tx = Prisma.TransactionClient;
 
@@ -158,9 +159,20 @@ class OrderRepository {
   /** Enqueues an engine cancel command for an active order owned by `userId`. */
   async requestCancel(userId: string, orderId: string) {
     return prisma.$transaction(async (tx) => {
+      // Row lock serialises concurrent cancels of the same order (bot retries, double clicks).
+      const locked = await lockOrder(tx, orderId);
+      if (!locked || locked.userId !== userId) return { result: "not_found" as const };
       const order = await tx.order.findFirst({ where: { orderId, userId }, select: ORDER_SELECT });
       if (!order) return { result: "not_found" as const };
       if (!ACTIVE.includes(order.status)) return { result: "not_active" as const, order: serializeOrder(order) };
+
+      // Cancels are async: the order stays active until the engine's order.cancelled is settled.
+      // A repeat request inside the window is acknowledged without a second engine command; after
+      // it, the command is re-sent (the engine dedupes) in case the first was somehow lost.
+      if (locked.cancelRequestedAt && Date.now() - locked.cancelRequestedAt.getTime() < CANCEL_RESEND_MS) {
+        return { result: "requested" as const, order: serializeOrder(order) };
+      }
+      await tx.order.update({ where: { orderId }, data: { cancelRequestedAt: new Date() } });
 
       await enqueueOutbox(tx, [
         {
@@ -359,7 +371,13 @@ class OrderRepository {
         throw new InvariantError(`Fill ${trade.tradeId} exceeds remaining quantity of ${order.orderId}`);
       }
 
-      const fee = toWallet(quote.mul(party.feeRate));
+      // Fee as the change in the order's rounded cumulative fee, not a per-fill rounding: per-fill
+      // half-up rounding drifts upward across many partial fills and eventually exceeds a BUY's
+      // reservation (sized as round-UP of the order total), wedging this consumer on one fill.
+      // Telescoping keeps Σfee = round(Σquote × rate), which the reservation always covers.
+      const prior = await tx.trade.aggregate({ where: { orderId: order.orderId }, _sum: { quoteAmount: true }, _count: true });
+      const priorQuote = prior._sum.quoteAmount ?? dec(0);
+      const fee = toWallet(priorQuote.add(quote).mul(party.feeRate)).sub(toWallet(priorQuote.mul(party.feeRate)));
       const remaining = order.remainingQuantity.sub(quantity);
       const executed = order.executedQuantity.add(quantity);
       const averagePrice = (order.averagePrice ?? dec(0)).mul(order.executedQuantity).add(quote).div(executed);
@@ -385,7 +403,9 @@ class OrderRepository {
       let used: Decimal = isBuy ? quote8.add(fee) : quantity;
       if (used.gt(reservation.remainingAmount)) {
         const shortfall = used.sub(reservation.remainingAmount);
-        if (isBuy && shortfall.lte(DUST_PER_FILL)) {
+        // Rounding can drift at most DUST_PER_FILL per fill (orders settled before the telescoping
+        // fee above carry that legacy drift), so tolerance scales with the order's fill count.
+        if (isBuy && shortfall.lte(DUST_PER_FILL.mul(prior._count + 1))) {
           logger.warn({ orderId: order.orderId, shortfall: shortfall.toFixed() }, "Rounding dust absorbed by reservation");
           used = reservation.remainingAmount;
         } else {

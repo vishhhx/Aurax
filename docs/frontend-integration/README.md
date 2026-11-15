@@ -47,7 +47,7 @@ Where code and docs disagree, the code wins: fix the doc.
 9. Only the Razorpay webhook credits deposits. After checkout, show
    "confirming", then wait for `deposit.completed` or poll
    `GET /wallet/deposits/:id`.
-10. Demo data appears only with `NEXT_PUBLIC_DEMO_MODE=true`, and is labelled.
+10. No demo or simulated data ships in the app; fixtures exist only in `apps/web/test`.
 
 ## Verifying this documentation
 

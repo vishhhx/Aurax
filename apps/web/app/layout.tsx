@@ -1,56 +1,37 @@
-import type { Metadata } from "next"
-import { Geist_Mono, Inter } from "next/font/google"
+import type { Metadata, Viewport } from "next"
+import { Geist_Mono, Inter, Instrument_Serif } from "next/font/google"
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { ReduxProvider } from "@/components/providers"
-import { Toaster } from "@/components/ui/sonner"
-import { TooltipProvider } from "@/components/ui/tooltip"
+import { AppProviders } from "@/components/app/providers"
 import { cn } from "@/lib/utils"
-import { SocketProvider } from "@/context/socketProvider"
-import { AccountEventsBridge } from "@/components/account-events-bridge"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
-
-const fontMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-})
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
+// Accent serif for single italic words in display headings (self-hosted by next/font).
+const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: ["normal", "italic"], variable: "--font-instrument-serif" })
 
 export const metadata: Metadata = {
   title: {
-    default: "Aurax Exchange | Buy, sell & trade crypto",
-    template: "%s | Aurax Exchange",
+    default: "Aurax Exchange",
+    template: "%s · Aurax",
   },
-  description:
-    "Aurax is a centralized crypto exchange with instant INR deposits, deep order books and a microsecond matching engine.",
+  description: "Spot crypto trading on the Aurax matching engine, with INR deposits through Razorpay.",
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f8f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
+}
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={cn(
-        "antialiased",
-        fontMono.variable,
-        "font-sans",
-        inter.variable
-      )}
-    >
-      <body>
-        <ReduxProvider>
-          <SocketProvider>
-            <AccountEventsBridge />
-            <ThemeProvider defaultTheme="dark">
-              <TooltipProvider>{children}</TooltipProvider>
-              <Toaster richColors position="top-center" />
-            </ThemeProvider>
-          </SocketProvider>
-        </ReduxProvider>
+    <html lang="en" suppressHydrationWarning className={cn("antialiased", inter.variable, mono.variable, serif.variable, "font-sans")}>
+      <body className="min-h-svh">
+        <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow">
+          Skip to content
+        </a>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   )

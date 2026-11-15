@@ -6,7 +6,7 @@ import { assertDevOnly, ENV, KILL_FILE, loadPlan, MAX_BOTS, PLAN_FILE, writeJson
 import { AuraxHttp, type Market } from "./lib/http";
 import { detectMode, launch, running, stop, stopAll } from "./lib/launcher";
 import { buildPlan, type MarketAllocation } from "./lib/plan";
-import { fmt } from "./lib/precision";
+import { fmt, roundToStep } from "./lib/precision";
 import { seed } from "./seed";
 
 assertDevOnly();
@@ -109,7 +109,59 @@ async function configure(markets: Market[]): Promise<void> {
   if (bail(await p.confirm({ message: `Start ${verified.length} bot(s) now?`, initialValue: false }))) start(verified);
 }
 
-/** Wallet Service is authoritative: bots whose balances do not cover their budget are not started. */
+/** Long-run preset: every bot slot on one market, live, no session/inventory caps, deep balanced funding. */
+const AUTO_ROLES = { maker: 14, taker: 12, liquidity: 4 }; // sums to MAX_BOTS
+const AUTO_QUOTE_PER_BOT = 5_000_000;
+
+async function autoDeploy(markets: Market[]): Promise<void> {
+  if (!markets.length) return void p.log.error("No markets available from the backend.");
+  if (running().length) return void p.log.warn("Stop running bots first (Stop all bots), then auto-deploy.");
+  const sym = bail(await p.select({ message: "Market for the long run", options: markets.map((m) => ({ value: m.symbol, label: m.symbol, hint: `${m.baseAsset}/${m.quoteAsset}` })) }));
+  const m = markets.find((x) => x.symbol === sym)!;
+
+  // Reference price for sizing the base budget (and as a fallback anchor if the book ever empties).
+  const [book, tick] = await Promise.all([pub.orderbook(sym, 1).catch(() => null), pub.ticker(sym).catch(() => null)]);
+  const bid = Number(book?.bids[0]?.price ?? 0), ask = Number(book?.asks[0]?.price ?? 0);
+  let ref = bid && ask ? (bid + ask) / 2 : Number(tick?.lastPrice ?? 0) || bid || ask;
+  if (!ref) {
+    p.log.warn(`${sym} has no order book and no trades yet.`);
+    ref = Number(bail(await p.text({ message: `${sym}: starting price in ${m.quoteAsset}`, placeholder: "e.g. 65000", validate: (v) => (decimal(v) ?? (Number(v) > 0 ? undefined : "must be > 0")) })));
+  }
+  const anchorPrice = roundToStep(ref, m.tickSize, "nearest");
+
+  const n = AUTO_ROLES.maker + AUTO_ROLES.taker + AUTO_ROLES.liquidity;
+  const basePerBot = Number(roundToStep(AUTO_QUOTE_PER_BOT / ref, m.stepSize, "down"));
+  const budget = { quote: String(AUTO_QUOTE_PER_BOT * n), base: roundToStep(basePerBot * n, m.stepSize, "down") };
+  const limits = { dryRun: false, maxSessionNotional: Infinity, maxInventoryBase: Infinity };
+
+  let plan: Plan;
+  try {
+    plan = buildPlan(n, [{ symbol: sym, roles: AUTO_ROLES, budget, anchorPrice, limits }], markets);
+  } catch (e) {
+    return void p.log.error((e as Error).message);
+  }
+  p.note(
+    [
+      `${chalk.bold(String(n))} bots on ${chalk.cyan(sym)} · ${AUTO_ROLES.maker} maker · ${AUTO_ROLES.taker} taker · ${AUTO_ROLES.liquidity} liquidity`,
+      `Per bot: ${fmt(basePerBot, 6)} ${m.baseAsset} + ${fmt(AUTO_QUOTE_PER_BOT)} ${m.quoteAsset}  ${chalk.gray(`(ref ${anchorPrice})`)}`,
+      `No session or inventory cap · crashed bots auto-restart · ${chalk.red("LIVE")}`,
+      chalk.gray("Replaces the saved bot plan. Stop with \"Stop all bots\" or Exit."),
+    ].join("\n"),
+    "Auto-deploy · long run",
+  );
+  if (!bail(await p.confirm({ message: `Provision, fund and start ${n} LIVE bots on ${sym}?`, initialValue: true }))) return;
+
+  const sp = p.spinner();
+  sp.start("Seeding bot users and dev funding");
+  const results = await seed(plan);
+  writeJson(PLAN_FILE, plan);
+  const failed = results.filter((r) => !r.ok);
+  sp.stop(`Seed complete · ${results.length - failed.length}/${results.length} ok`);
+  for (const r of failed) p.log.error(`${r.bot}: ${r.error}`);
+  start(await verifyBalances(plan));
+}
+
+/** Wallet Service is authoritative: bots with no funds at all are not started; below-budget bots start with a warning. */
 async function verifyBalances(plan: Plan): Promise<BotDef[]> {
   const okBots: BotDef[] = [];
   const rows: string[] = [];
@@ -118,9 +170,14 @@ async function verifyBalances(plan: Plan): Promise<BotDef[]> {
     try {
       const bal = await asBot(b).balances();
       const total = (s: string) => { const x = bal.find((y) => y.symbol === s); return x ? Number(x.availableBalance) + Number(x.lockedBalance) : 0; };
-      const enough = total(b.baseAsset) >= Number(b.budget.base) && total(b.quoteAsset) >= Number(b.budget.quote);
-      rows.push(`${enough ? chalk.green("✓") : chalk.red("✗")} ${b.name.padEnd(22)} ${fmt(total(b.baseAsset), 6)} ${b.baseAsset} · ${fmt(total(b.quoteAsset), 2)} ${b.quoteAsset}${enough ? "" : chalk.red("  below budget")}`);
-      if (enough) okBots.push(b);
+      // Budget is a funding target, not a start requirement: trading moves value between the two
+      // assets, so one side naturally dips below budget. Strategies cap orders by actual wallet funds.
+      const funded = total(b.baseAsset) > 0 || total(b.quoteAsset) > 0;
+      const atBudget = total(b.baseAsset) >= Number(b.budget.base) && total(b.quoteAsset) >= Number(b.budget.quote);
+      const mark = !funded ? chalk.red("✗") : atBudget ? chalk.green("✓") : chalk.yellow("~");
+      const tag = !funded ? chalk.red("  no funds") : atBudget ? "" : chalk.yellow("  below budget (starting anyway)");
+      rows.push(`${mark} ${b.name.padEnd(22)} ${fmt(total(b.baseAsset), 6)} ${b.baseAsset} · ${fmt(total(b.quoteAsset), 2)} ${b.quoteAsset}${tag}`);
+      if (funded) okBots.push(b);
     } catch (e) {
       rows.push(chalk.red(`✗ ${b.name}: ${(e as Error).message}`));
     }
@@ -210,6 +267,7 @@ async function main(): Promise<void> {
     const choice = await p.select({
       message: "Select an option",
       options: [
+        { value: "auto", label: "Auto-deploy max bots (long run)", hint: `${MAX_BOTS} live bots on one market, no limits` },
         { value: "config", label: "Configure and start bots" },
         { value: "start", label: "Start configured bots", hint: loadPlan() ? `${loadPlan()!.bots.length} configured` : "none" },
         { value: "list", label: "View running bots", hint: `${running().length} running` },
@@ -224,7 +282,8 @@ async function main(): Promise<void> {
     });
     if (p.isCancel(choice) || choice === "exit") break;
     try {
-      if (choice === "config") await configure(markets);
+      if (choice === "auto") await autoDeploy(markets);
+      else if (choice === "config") await configure(markets);
       else if (choice === "start") { const plan = loadPlan(); if (plan) start(await verifyBalances(plan)); }
       else if (choice === "list") showRunning();
       else if (choice === "stop") { const b = await pickBot(true); if (b) p.log.success((await stop(b.id)) ? `${b.name} stopped` : `${b.name} was not running`); }

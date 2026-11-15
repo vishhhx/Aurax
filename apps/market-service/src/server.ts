@@ -88,6 +88,7 @@ async function start(): Promise<void> {
     pipeline,
     ticker: tickerAggregator,
     stream: (s, since) => tradeRepo.streamSince(s, since),
+    latest: (s) => tradeRepo.latestPerSymbol(s),
   });
   // Rebuilt historical candles were already published (or predate this
   // service); don't re-broadcast them as "newly closed".

@@ -2,7 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
-import { RUN_DIR, writeJson } from "../src/lib/config";
+import { RUN_DIR, STOP_DIR, writeJson } from "../src/lib/config";
 import { alive, running, stop, stopAll } from "../src/lib/launcher";
 
 // Stand-in children that behave like bots towards the process manager (run file + SIGTERM).
@@ -14,7 +14,7 @@ const spawnFake = (id: string, ignoreTerm = false) => {
   return c.pid!;
 };
 
-afterAll(() => ["t-a", "t-b", "t-c", "t-dead"].forEach((id) => rmSync(join(RUN_DIR, `${id}.json`), { force: true })));
+afterAll(() => ["t-a", "t-b", "t-c", "t-dead"].forEach((id) => { rmSync(join(RUN_DIR, `${id}.json`), { force: true }); rmSync(join(STOP_DIR, id), { force: true }); }));
 
 test("stops one bot without touching the others, then stops all", async () => {
   const a = spawnFake("t-a"), b = spawnFake("t-b");

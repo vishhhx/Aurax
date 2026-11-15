@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
-import { openSync, readdirSync, rmSync } from "node:fs";
+import { readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { APP_DIR, LOG_DIR, readJson, RUN_DIR } from "./config";
+import { APP_DIR, KILL_FILE, readJson, RUN_DIR, STOP_DIR } from "./config";
 
 export type LaunchMode = "window" | "tmux" | "background";
 
@@ -49,8 +49,17 @@ export function detectMode(): { mode: LaunchMode; emulator?: string } {
  */
 export function launch(id: string, name: string): string {
   const { mode, emulator } = detectMode();
-  // The bot reads .env from its cwd; keep the window open on crash so the error is readable.
-  const inner = `cd ${JSON.stringify(APP_DIR)} && ${JSON.stringify(process.execPath)} src/bot.ts ${id} 2>>.state/logs/${id}.err || { echo; echo "bot exited — see .state/logs/${id}.err"; read -r _; }`;
+  const stopMarker = join(STOP_DIR, id);
+  rmSync(stopMarker, { force: true });
+  // Supervised: a crashed bot restarts after 5s. A clean exit (SIGTERM, kill switch) or an
+  // operator stop (marker file, also set before SIGKILL) ends the loop. The bot reads .env from its cwd.
+  const inner = [
+    `cd ${JSON.stringify(APP_DIR)}`,
+    `while :; do ${JSON.stringify(process.execPath)} src/bot.ts ${id} 2>>.state/logs/${id}.err; code=$?`,
+    `[ $code -eq 0 ] && break`,
+    `{ [ -e ${JSON.stringify(stopMarker)} ] || [ -e ${JSON.stringify(KILL_FILE)} ]; } && break`,
+    `echo "bot exited ($code) — see .state/logs/${id}.err — restarting in 5s"; sleep 5; done`,
+  ].join("; ");
   if (mode === "window") {
     const build = EMULATORS.find(([b]) => b === emulator)![1];
     spawn(emulator!, build(name, ["bash", "-c", inner]), { detached: true, stdio: "ignore" }).unref();
@@ -62,8 +71,7 @@ export function launch(id: string, name: string): string {
     spawnSync("tmux", [...args, "bash", "-c", inner]);
     return "tmux session aurax-bots (tmux attach -t aurax-bots)";
   }
-  const out = openSync(join(LOG_DIR, `${id}.err`), "a");
-  spawn(process.execPath, ["src/bot.ts", id], { cwd: APP_DIR, detached: true, stdio: ["ignore", "ignore", out] }).unref();
+  spawn("bash", ["-c", inner], { detached: true, stdio: "ignore" }).unref();
   return `background (logs: .state/logs/${id}.log)`;
 }
 
@@ -91,6 +99,7 @@ export function running(): RunState[] {
 export async function stop(id: string, graceMs = 8000): Promise<boolean> {
   const s = running().find((r) => r.id === id);
   if (!s) return false;
+  writeFileSync(join(STOP_DIR, id), new Date().toISOString()); // tells the supervisor loop not to restart
   process.kill(s.pid, "SIGTERM");
   const until = Date.now() + graceMs;
   while (alive(s.pid) && Date.now() < until) await Bun.sleep(200);

@@ -7,9 +7,10 @@ export const RUN_DIR = join(STATE_DIR, "run");
 export const LOG_DIR = join(STATE_DIR, "logs");
 export const PLAN_FILE = join(STATE_DIR, "bots.json");
 export const KILL_FILE = join(STATE_DIR, "KILL");
-for (const d of [STATE_DIR, RUN_DIR, LOG_DIR]) mkdirSync(d, { recursive: true });
+export const STOP_DIR = join(STATE_DIR, "stop");
+for (const d of [STATE_DIR, RUN_DIR, LOG_DIR, STOP_DIR]) mkdirSync(d, { recursive: true });
 
-export const MAX_BOTS = 15;
+export const MAX_BOTS = 30;
 export const ROLES = ["maker", "taker", "liquidity"] as const;
 export type Role = (typeof ROLES)[number];
 
@@ -36,7 +37,7 @@ export interface Limits {
   dryRun: boolean;
   cooldownMs: number;
   maxOrderNotional: number; // quote
-  maxSessionNotional: number; // quote, total submitted this session
+  maxSessionNotional: number; // quote, total submitted this session (Infinity = unlimited)
   maxOpenOrders: number;
   maxInventoryBase: number; // hard cap on base-asset holdings
   spreadBps: number; // maker/liquidity: distance of first level from reference
@@ -104,7 +105,9 @@ export function loadPlan(): Plan | null {
   const plan = readJson<Plan>(PLAN_FILE);
   for (const b of plan?.bots ?? []) {
     b.limits = { ...defaultLimits(b.role), ...b.limits, dryRun: b.limits.dryRun };
+    // JSON has no Infinity: writeJson stores unlimited caps as null.
     if (b.limits.maxInventoryBase == null) b.limits.maxInventoryBase = Infinity;
+    if (b.limits.maxSessionNotional == null) b.limits.maxSessionNotional = Infinity;
   }
   return plan;
 }

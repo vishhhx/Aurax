@@ -32,6 +32,8 @@ export async function reconstructMarketState(params: {
   pipeline: Pick<TradePipeline, "applyToState">;
   ticker: TickerAggregator;
   stream: (symbols: string[], since: number) => AsyncIterable<PublicTrade[]>;
+  /** Latest trade per symbol regardless of age, so `lastPrice` survives a restart after a quiet 24h. */
+  latest?: (symbols: string[]) => Promise<PublicTrade[]>;
   now?: number;
 }): Promise<{ trades: number; since: number }> {
   const now = params.now ?? Date.now();
@@ -39,6 +41,12 @@ export async function reconstructMarketState(params: {
   let count = 0;
 
   params.ticker.register(params.symbols, now);
+
+  // Older than the window: only sets the ticker's `last` (no volume/candle effect).
+  // Inside the window: the stream below re-delivers it and the ticker dedupes by tradeId.
+  for (const trade of (await params.latest?.(params.symbols)) ?? []) {
+    params.ticker.processTrade(trade, now);
+  }
 
   for await (const batch of params.stream(params.symbols, since)) {
     for (const trade of batch) {

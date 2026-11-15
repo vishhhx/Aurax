@@ -47,7 +47,9 @@ async function fund(userId: string, botId: string, symbol: string, target: strin
   if (Number(deficit.toString()) <= 0) return null;
 
   const round = await prisma.deposit.count({ where: { userId, assetId: asset.assetId, network: DEV_NETWORK } });
-  const orderId = `devbot:${botId}:${symbol}:${round}`;
+  // userId is part of the key: if a bot's auth user is recreated (new Mongo), its
+  // deposits must not collide with the old user's completed ones and be silently skipped.
+  const orderId = `devbot:${botId}:${userId}:${symbol}:${round}`;
   return prisma.$transaction(async (tx) => {
     const deposit = await tx.deposit.upsert({
       where: { orderId },

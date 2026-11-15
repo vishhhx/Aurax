@@ -1,10 +1,6 @@
-import type { Metadata } from "next"
-import { RazorpayCheckout } from "@/components/payment/razorpay-checkout"
+import { redirect } from "next/navigation"
 
-export const metadata: Metadata = {
-  title: "Buy USDC with INR",
-}
-
-export default function RazorpayPaymentPage() {
-  return <RazorpayCheckout />
+/** Former checkout URL; the deposit flow now lives in the wallet. */
+export default function LegacyRazorpayPage() {
+  redirect("/wallet/deposit")
 }

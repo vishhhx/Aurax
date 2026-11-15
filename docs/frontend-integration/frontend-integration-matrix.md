@@ -119,4 +119,4 @@ Evidence keys:
 | Rate limit handling | 429 + `Retry-After` (CORS-exposed) | Implemented | not load-tested |
 | Upstream down | 502/504 JSON from gateway | Implemented | |
 | Service health banner | `GET /health`, `/api/v1/market/health/ready` | Implemented | |
-| Demo mode | `NEXT_PUBLIC_DEMO_MODE=true`, clearly labelled | N/A | never mixes with real data |
+| Demo mode | removed with the simulator; fixtures live only in `apps/web/test` | N/A | never mixes with real data |

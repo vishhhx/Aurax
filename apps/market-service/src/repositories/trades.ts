@@ -127,6 +127,20 @@ class TradeRepository {
     };
   }
 
+  /** Most recent trade per symbol, regardless of age. Seeds `lastPrice` for quiet markets on startup. */
+  async latestPerSymbol(symbols: string[]): Promise<PublicTrade[]> {
+    const rows = await Promise.all(
+      symbols.map((symbol) =>
+        prisma.marketTrade.findFirst({
+          where: { symbol },
+          orderBy: [{ executedAt: "desc" }, { tradeId: "desc" }],
+          select: SELECT,
+        }),
+      ),
+    );
+    return rows.flatMap((r) => (r ? [rowToTrade(r)] : []));
+  }
+
   /** Ascending (executedAt, tradeId) scan used for startup reconstruction. */
   async *streamSince(symbols: string[], since: number, batchSize = 5_000): AsyncGenerator<PublicTrade[]> {
     let after: TradeCursor | null = null;
