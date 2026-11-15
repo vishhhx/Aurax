@@ -1,5 +1,7 @@
 # Aurax Backend
 
+> **Architecture deep dive:** [architecture/README.md](architecture/README.md) (system overview, services, communication, matching engine, end-to-end flows, data model, reliability, frontend, operations; verified against the code on 2026-11-16).
+>
 > **Current documentation:** [frontend-integration/README.md](frontend-integration/README.md) (API, WebSocket, auth, events, readiness matrix, all verified against the code on 2026-10-26).
 > Audit trail: [INTEGRATION_AUDIT.md](INTEGRATION_AUDIT.md) · [EVENT_FLOWS.md](EVENT_FLOWS.md). Pages below marked *superseded* describe an earlier design.
 

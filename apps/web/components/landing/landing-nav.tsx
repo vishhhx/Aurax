@@ -17,7 +17,7 @@ export function LandingNav() {
     <nav aria-label="Main" className="relative z-40 flex items-center justify-between px-8 py-4 md:px-28">
       <div className="flex items-center gap-12 md:gap-20">
         <Link href="/" className="flex items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-          <Image src="/logo.png" alt="" width={28} height={28} className="rounded-md" priority />
+          <Image src="/logo.svg" alt="" width={30} height={30} className="rounded-[9px]" priority />
           <span className="text-xl font-bold tracking-tight">Aurax</span>
         </Link>
         <div className="hidden items-center gap-1 md:flex">

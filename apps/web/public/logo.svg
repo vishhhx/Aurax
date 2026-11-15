@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="8" y1="0" x2="56" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1c2622"/>
+      <stop offset="1" stop-color="#070a09"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="32" y1="12" x2="32" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe7a3"/>
+      <stop offset="0.45" stop-color="#f6c044"/>
+      <stop offset="1" stop-color="#d48a16"/>
+    </linearGradient>
+    <linearGradient id="trend" x1="20" y1="0" x2="44" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#5eead4"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="32" cy="15" r="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffd76a" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#ffd76a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- glass tile -->
+  <rect width="64" height="64" rx="16" fill="url(#tile)"/>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="15.25" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1.5"/>
+  <circle cx="32" cy="15" r="18" fill="url(#glow)"/>
+  <!-- the A: a market peak -->
+  <path d="M15.5 48 L32 16.5 L48.5 48" stroke="url(#gold)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- crossbar as a rising trend line -->
+  <path d="M21.5 40 L27.5 35.5 L32.5 38.5 L41.5 31" stroke="url(#trend)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="41.5" cy="31" r="2.4" fill="#5eead4"/>
+  <!-- apex spark -->
+  <circle cx="32" cy="16.5" r="2.2" fill="#fff6d8"/>
+</svg>

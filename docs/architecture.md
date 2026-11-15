@@ -1,7 +1,7 @@
 # Architecture
 
 > **Superseded (2026-10-26).** This page describes an earlier design and is kept for history.
-> The current, code-verified contract is [architecture.md](frontend-integration/architecture.md).
+> The current, code-verified docs are [architecture/](architecture/README.md) (full deep dive) and [frontend-integration/architecture.md](frontend-integration/architecture.md).
 
 ## Overview
 

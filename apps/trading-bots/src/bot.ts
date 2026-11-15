@@ -1,4 +1,4 @@
-import { appendFileSync, rmSync } from "node:fs";
+import { appendFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { assertDevOnly, killed, loadPlan, LOG_DIR, RUN_DIR, writeJson } from "./lib/config";
 import { AuraxHttp, HttpError, type Order, type OrderInput, type Trade } from "./lib/http";
@@ -183,6 +183,15 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(sig, () =
 log(`started pid ${process.pid} (${bot.limits.dryRun ? "dry-run" : "LIVE"})`);
 setInterval(tick, Math.min(1000, Math.max(250, bot.limits.cooldownMs / 2)));
 const screen = new Screen();
+// Dev hook: AURAX_BOT_FRAME_DIR=<dir> also writes the latest rendered frame (ANSI) to <dir>/<id>.ansi,
+// so dashboards can be snapshotted without a terminal (see docs/snapshots).
+const frameDir = process.env.AURAX_BOT_FRAME_DIR;
+let frameAt = 0;
 setInterval(() => {
-  screen.draw(render({ bot: bot!, book, candles, wsConnected: feed.connected, authed, trading, note, open, fills, balances: bal, sessionNotional, log: logs, pricePrecision: market!.pricePrecision, qtyPrecision: market!.quantityPrecision }));
+  const frame = render({ bot: bot!, book, candles, wsConnected: feed.connected, authed, trading, note, open, fills, balances: bal, sessionNotional, log: logs, pricePrecision: market!.pricePrecision, qtyPrecision: market!.quantityPrecision });
+  screen.draw(frame);
+  if (frameDir && Date.now() - frameAt > 1000) {
+    frameAt = Date.now();
+    try { writeFileSync(join(frameDir, `${bot!.id}.ansi`), frame); } catch {}
+  }
 }, 250);
